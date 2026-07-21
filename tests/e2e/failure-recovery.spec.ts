@@ -33,6 +33,10 @@ test("an upload failure preserves ink and exposes an explicit retry", async ({
   });
   await page.goto("/judge");
   await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await expect(page.locator("[data-saved-strokes]")).toHaveAttribute(
+    "data-saved-strokes",
+    /^[1-9]\d*$/u,
+  );
   const savedBefore = await page
     .locator("[data-saved-strokes]")
     .getAttribute("data-saved-strokes");
