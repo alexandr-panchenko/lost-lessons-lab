@@ -197,16 +197,26 @@ GPT does not decide arithmetic truth or execute simulation code. Pure TypeScript
 
 ## Codex collaboration
 
-The repository is intentionally prepared for one primary Codex implementation session. The human completed the product framing, educational boundary, UX, scope freeze, deterministic/AI boundary, Cloudflare architecture, physics choice, test strategy, and cut order before coding.
+One primary Codex implementation session executed the frozen plan from
+[`CODEX-KICKOFF.md`](CODEX-KICKOFF.md). The session built the reproducible
+Cloudflare shell (`7c5b502`), persistent capability rooms (`0c39b42`), realtime
+layered canvas and bridge physics (`b76eede`), GPT-5.6 interpretation
+(`969f99d`), complete hero (`80d93aa`), three independently tested supporting
+families (`c586be7`, `2a5ffbb`, `81af212`), reliability controls (`3c9afce`),
+accessibility polish (`b990abe`), and the release audit (`eef7c03`).
 
-Codex must implement milestone by milestone using [`CODEX-KICKOFF.md`](CODEX-KICKOFF.md), update [`STATUS.md`](STATUS.md), run the specified gates, and record exact evidence.
+At every milestone Codex updated [`STATUS.md`](STATUS.md), added automated tests,
+ran the prescribed local and production gates, fixed failures, deployed only
+after green CI, and recorded concrete evidence in
+[`docs/08-SUBMISSION-EVIDENCE.md`](docs/08-SUBMISSION-EVIDENCE.md). The private
+representative `/feedback` Session ID belongs in the Devpost field, not this
+public repository. No additional implementation session or delegated agent was
+used.
 
-Before submission, update this section with:
-
-- primary Codex Session ID from `/feedback`;
-- representative commits and milestones implemented by Codex;
-- important human corrections or decisions made during implementation;
-- any additional Codex sessions used and why.
+The human supplied and retained ownership of the educational boundary, product
+scope, UX, deterministic/AI split, architecture, simulation priorities, test
+strategy, and cut order. Codex made implementation choices within those frozen
+decisions and surfaced release blockers instead of inventing missing evidence.
 
 ## Key human decisions
 

@@ -36,7 +36,7 @@ Do not use:
 | Cloudflare deployment/version | M8 final `968d9590-25e6-4a6d-8ea6-e6b12febb9be` from commit `951c978` | PASS through M8 |
 | Representative Codex Session ID | store in private submission checklist; pending | PENDING |
 | OpenAI model ID observed in production | `gpt-5.6-sol` | PASS |
-| License | `LICENSE`, Apache-2.0 | PASS for design packet only |
+| License | `LICENSE`, Apache-2.0; public GitHub metadata reports Apache-2.0 | PASS |
 
 ## Milestone implementation evidence
 
@@ -58,19 +58,19 @@ Do not use:
 
 | Requirement / criterion | Claim | Exact evidence target | URL / file / video timestamp | Verification | Status |
 |---|---|---|---|---|---|
-| New or substantially new work | Core application is built during the competition period | Git history from initial design commit through submission tag | repository commit range | Compare timestamps and diff; summarize in README | PENDING |
-| Education track fit | Product addresses tutor-guided correction of a specific math gap | Implemented teacher request, learner attempt, correction flow | production `/judge`; `docs/01-PRODUCT-BRIEF.md` is rationale only | Human judge run and video | PENDING |
+| New or substantially new work | Core application is built during the competition period | Git history from initial design commit through submission tag | commits `07d27b5` through M8 close `2b4e60b`, all dated 2026-07-21 | `git log --reverse` and README commit mapping were reviewed; the final tag remains pending external submission assets | PASS through M8 |
+| Education track fit | Product addresses tutor-guided correction of a specific math gap | Implemented teacher request, learner attempt, correction flow | production `/judge`; `scripts/verify-production-hero.ts`; `docs/evidence/m5/hero-wrong-to-correct.png` | The production verifier completed tutor-guided fraction error, explanation, correction, and retry without a mastery claim | PASS |
 | Substantive Codex use | Primary Codex session implements the majority of core functionality | Codex Session ID, commit authorship/log, milestone history, README build log | private Devpost field; README; Git history | Cross-check Session ID and commits | PENDING |
 | Substantive GPT-5.6 use | GPT-5.6 reads free-form handwriting, returns structured steps and likely error | Production server config, real response ID, analysis card, live eval | `src/worker/ai/openai-responses.ts`; `tests/live-ai/bridge-live.test.ts`; `docs/evidence/m4/analysis-wrong.png`; production response suffix `44401dc4` | Live and production paths reported `gpt-5.6-sol`; exact extracted values and visible likely error were independently asserted | PASS |
 | Working product | Production judge path completes wrong and correct attempts | Playwright production trace and manual capture | `scripts/verify-production-hero.ts`; `docs/evidence/m5/hero-wrong-to-correct.png` | Clean production browser completed both real-AI attempts, physics outcomes, awards, reload, and reset | PASS |
 | Free testing path | No login, payment, or BYOK | `/judge` in clean browser; UI screenshot | `JUDGING.md`; `docs/evidence/m5/hero-wrong-to-correct.png` | Clean production contexts entered isolated rooms without credentials, payment, or user API key | PASS |
 | Live URL | Cloudflare URL remains accessible | HTTP/smoke report | `https://lost-lessons-lab.sanocks.workers.dev`; deploy run `29810212998` | Gated and post-propagation smoke passed | PASS |
 | Video under 3 minutes | Public narrated English video is shorter than 3:00 | YouTube duration and public access | video URL | Open incognito; record duration | PENDING |
-| Repository available | Public repo or organizer-accessible private repo | Repository settings and URL | repo URL | Open unauthenticated or verify invitations | PENDING |
+| Repository available | Public repo or organizer-accessible private repo | Repository settings and URL | `https://github.com/alexandr-panchenko/lost-lessons-lab` | `gh repo view` reported `PUBLIC`, default branch `main`, and Apache-2.0 metadata on 2026-07-21 | PASS |
 | Suitable license | Repository includes Apache-2.0 | `LICENSE` | repository root | Compare to official Apache text | PASS |
 | English materials | UI, README, judging, video/subtitles, Devpost are English | Final production and documents | multiple | Manual review | PENDING |
 | No secrets | No API keys/tokens/private links in tracked files, bundle, logs, video | secret-scan output and manual review | CI artifact; report | Run scan on submission commit | PENDING |
-| License compliance | Dependencies and assets have verified licenses | lockfile audit, `THIRD_PARTY_NOTICES.md`, asset provenance | repository files | Manual and automated license review | PENDING |
+| License compliance | Dependencies and assets have verified licenses | lockfile audit, `THIRD_PARTY_NOTICES.md`, asset provenance | `bun.lock`; `THIRD_PARTY_NOTICES.md`; README original-media statement | Locked direct dependencies were reviewed as MIT/Apache-2.0-compatible; visuals and Web Audio tones are original code-generated primitives with no third-party media | PASS |
 | `/feedback` Session ID | Representative Codex Session ID supplied | Devpost field/screenshot | private evidence location | Verify after `/feedback` | PENDING |
 | Submission status | Devpost project is Submitted, not Draft | confirmation screen | private screenshot | Open My Projects and public View | PENDING |
 
@@ -132,30 +132,30 @@ Do not use:
 
 | Claim | Evidence needed | Status |
 |---|---|---|
-| Multimodal handwriting is converted into safe structured simulation parameters | Real model call, strict schema, semantic validation, visible recognition card | PENDING |
-| Realtime collaboration is persistent and role-aware | Two-context WebSocket/DO test, reload, permission assertions | PENDING |
-| Physics is real and input-parameterized | Varying bridge length, Planck source, headless contract tests, no video switch | PENDING |
-| Failure paths are designed rather than hidden | AI-disabled, invalid schema, renderer, reconnect tests | PENDING |
-| Deployment is reproducible | Clean clone, CI, pinned lockfile, production URL | PENDING |
+| Multimodal handwriting is converted into safe structured simulation parameters | `scripts/verify-production-ai.ts`; `src/shared/analysis-types.ts`; `src/shared/validation/bridge-analysis.ts`; `docs/evidence/m4/analysis-wrong.png` | PASS |
+| Realtime collaboration is persistent and role-aware | `tests/e2e/realtime.spec.ts`; `tests/e2e/room-shell.spec.ts`; final 21-path production run | PASS |
+| Physics is real and input-parameterized | `src/simulations/bridge/bridge-world.ts`; `tests/unit/bridge.test.ts`; `docs/evidence/m3/bridge-4.08-failure.png`; `docs/evidence/m3/bridge-9-success.png` | PASS |
+| Failure paths are designed rather than hidden | `tests/e2e/failure-recovery.spec.ts`; `scripts/verify-production-fallback.ts`; `docs/evidence/m6/ai-disabled-manual-recovery.png` | PASS |
+| Deployment is reproducible | `bunfig.toml`; CI `29824539151`; deploy `29824698851`; clean-clone M8 evidence | PASS |
 
 ### Design
 
 | Claim | Evidence needed | Status |
 |---|---|---|
 | First action is obvious | Five-second first-impression review and first-screen capture | PENDING |
-| Task, reasoning, consequence, and retry remain in one coherent feed | Full path screenshot sequence/video | PENDING |
-| Visual spectacle supports rather than obscures math | Causal explanation and visible values beside outcome | PENDING |
-| Cross-device and accessible states exist | Responsive, keyboard, reduced-motion, transcript evidence | PENDING |
-| Errors feel playful, not punitive | Copy review and user/reviewer response | PENDING |
+| Task, reasoning, consequence, and retry remain in one coherent feed | `docs/evidence/m5/hero-wrong-to-correct.png`; `scripts/verify-production-hero.ts` | PASS |
+| Visual spectacle supports rather than obscures math | `docs/evidence/m4/analysis-wrong.png`; deterministic input/result text assertions in `tests/e2e/bridge-manual.spec.ts` | PASS |
+| Cross-device and accessible states exist | `docs/evidence/m7/`; `scripts/verify-production-accessibility.ts`; `tests/e2e/accessibility.spec.ts` | PASS |
+| Errors feel playful, not punitive | `docs/evidence/m3/bridge-4.08-failure.png`; `src/worker/domain/achievements.ts`; copy assertions in unit/E2E tests | PASS |
 
 ### Potential Impact
 
 | Claim | Evidence needed | Status |
 |---|---|---|
-| Tutors can turn a known gap into targeted visual practice | Teacher request-to-task production capture | PENDING |
-| Learners can see and correct a specific misconception | Wrong/correction/success evidence | PENDING |
-| The room supports live and between-session practice | Two-context collaboration and reload persistence | PENDING |
-| Expansion is feasible across supported templates | At least one complete hero and any finished supporting family; source template contract | PENDING |
+| Tutors can turn a known gap into targeted visual practice | production `/judge`; `docs/evidence/m7/desktop-first-screen.png`; `scripts/verify-production-hero.ts` | PASS |
+| Learners can see and correct a specific misconception | `docs/evidence/m5/hero-wrong-to-correct.png`; final literal production judge run | PASS |
+| The room supports live and between-session practice | `tests/e2e/realtime.spec.ts`; reload persistence in `scripts/verify-production-hero.ts` | PASS |
+| Expansion is feasible across supported templates | Complete bridge, water, speed, and structure milestone rows; shared template/domain contracts | PASS |
 
 Do not claim measured learning improvement without a study.
 
@@ -164,9 +164,9 @@ Do not claim measured learning improvement without a study.
 | Claim | Evidence needed | Status |
 |---|---|---|
 | “The math is the controller” is clearly demonstrated | Hero video and varying submitted lengths | PENDING |
-| Error itself becomes a memorable experiment | Disaster discovery plus successful retry | PENDING |
-| AI use is necessary rather than decorative | Free-form alternate handwriting examples and structured interpretation | PENDING |
-| The product is not a generic worksheet or physics game | Teacher context, causal loop, no direct game control | PENDING |
+| Error itself becomes a memorable experiment | `docs/evidence/m5/hero-wrong-to-correct.png`; disaster/progress achievement tests | PASS |
+| AI use is necessary rather than decorative | Two-image live eval; strict structured interpretation card; teacher-layer exclusion tests | PASS |
+| The product is not a generic worksheet or physics game | Persistent teacher context, learner canvas, causal explanation, and math-only simulation inputs in final production path | PASS |
 
 ## Codex collaboration evidence
 
@@ -176,11 +176,16 @@ Record without revealing private chain-of-thought:
 |---|---|---|
 | Primary build session identity | `/feedback` Session ID in private submission record | PENDING |
 | Source-of-truth read confirmation | Initial Codex response or build log | PENDING |
-| Milestone commits | Git log mapped to `docs/05-IMPLEMENTATION-PLAN.md` | PENDING |
+| Milestone commits | README Codex mapping; `STATUS.md`; commits `7c5b502`, `0c39b42`, `b76eede`, `969f99d`, `80d93aa`, `3c9afce`, `b990abe`, `eef7c03` | PASS |
 | Core functionality authored in session | Commit/file mapping | PENDING |
-| Human decisions preserved | Decision log and README section | PASS for design; implementation cross-check pending |
-| Codex validation behavior | CI/test fixes and STATUS updates | PENDING |
-| Additional meaningful sessions | README disclosure if used | N/A until implementation |
+| Human decisions preserved | `docs/03-DECISION-LOG.md`; README human decisions and Codex collaboration sections; implemented deterministic/AI and cut boundaries | PASS |
+| Codex validation behavior | `STATUS.md`; milestone evidence rows; CI/deploy run sequence; corrective commits after failed gates | PASS |
+| Additional meaningful sessions | README disclosure: no additional implementation session or delegated agent was used | N/A |
+
+The internal eligibility, rubric, and provisional first-impression review is
+recorded in `docs/evidence/m9/internal-release-review.md`. It explicitly does
+not substitute for the final independent review, public video, private Session
+ID, or Devpost confirmation.
 
 Do not publish a private Session ID in a public repository unless submission rules require it publicly. Store it in the user's secure checklist and the Devpost field.
 

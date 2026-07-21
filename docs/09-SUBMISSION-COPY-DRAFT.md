@@ -135,10 +135,6 @@ This boundary lets the learner write naturally without allowing an unverified mo
 
 ## How we used Codex
 
-[Replace with evidence from the actual build.]
-
-Draft:
-
 Codex was the primary implementation agent for the repository. Before coding, we supplied a frozen product brief, UX flow, decision log, technical design, milestone runbook, test plan, security/deployment design, and evidence matrix.
 
 The primary Codex session worked milestone by milestone:
@@ -151,9 +147,7 @@ The primary Codex session worked milestone by milestone:
 6. hardened failure paths and accessibility;
 7. ran release and evidence checks.
 
-For each milestone, Codex updated `STATUS.md`, added tests, ran the required commands, deployed a green slice, reviewed its diff, committed the milestone, and recorded evidence. The representative `/feedback` Session ID is included in the Devpost submission.
-
-Add exact commits, files, and any additional meaningful sessions. Do not claim that one session built all core functionality unless the Git history and Session evidence support it.
+For each milestone, Codex updated `STATUS.md`, added tests, ran the required commands, deployed a green slice, reviewed its diff, committed the milestone, and recorded evidence. Representative implementation commits are `7c5b502` (environment), `0c39b42` (rooms), `b76eede` (canvas and bridge), `969f99d` (GPT-5.6), `80d93aa` (hero), `3c9afce` (reliability), `b990abe` (accessibility), and `eef7c03` (release audit). One primary session performed the implementation; no delegated agent or additional implementation session was used. The representative `/feedback` Session ID must be included privately in the Devpost submission.
 
 ## Human decisions
 
@@ -175,10 +169,6 @@ The human product owner made the decisions that define the product:
 
 ## Challenges
 
-[Keep only challenges proven by implementation evidence.]
-
-Likely challenge areas:
-
 ### Free-form handwriting versus reliable state
 
 The learner needed freedom to solve naturally, while the simulation needed strict parameters. We separated interpretation and validation: GPT-5.6 produces a structured candidate; deterministic template code validates it before the scene starts.
@@ -197,26 +187,16 @@ The first screen explains the value before the model call. Analysis shows meanin
 
 ## Accomplishments
 
-Replace with verified items, for example:
-
-- [ ] A clean judge can complete the wrong-to-correct bridge loop in under 90 seconds.
-- [ ] GPT-5.6 reliably extracts `0.34`, `4.08 m`, `0.75`, and `9 m` from the prepared handwriting.
-- [ ] Teacher and learner strokes synchronize in realtime.
-- [ ] Teacher annotations are proven absent from AI input.
-- [ ] Changing the submitted number changes real bridge geometry.
-- [ ] Replay does not make another AI call.
-- [ ] AI-disabled fallback completes the same physics flow.
-- [ ] Reload restores the room.
-- [ ] Production passes unit, integration, E2E, live-AI, and smoke checks.
-- [ ] [Any finished supporting family.]
-
-Remove unchecked accomplishments from final copy.
+- A clean judge completes the prepared wrong-to-correct bridge loop with two real GPT-5.6 calls.
+- GPT-5.6 extracts `0.34`, `4.08 m`, `0.75`, and `9 m` from the prepared handwriting without repair in the final live gate.
+- Teacher and learner strokes synchronize in realtime, while teacher annotations are excluded from learner analysis.
+- Changing the submitted number changes real Planck/PixiJS bridge geometry rather than choosing a video.
+- Replay makes no new AI call, and reload restores the room feed.
+- The AI-disabled fallback completes the same deterministic wrong and correct physics flow.
+- The final gate passed 65 unit, 22 Worker/SQLite Durable Object/R2 integration, and 21 local plus 21 production browser tests.
+- Water/volume, speed/collision, and structure/load were each completed, tested, deployed, and kept visible.
 
 ## What we learned
-
-[Rewrite from actual implementation.]
-
-Draft themes:
 
 - A model is most useful here as an interpreter between human expression and a strict domain contract, not as an unbounded controller.
 - Small deterministic validators can make a multimodal experience far more trustworthy.
@@ -263,17 +243,15 @@ teacher-identified gap
 
 The learner's mathematics is the only controller. The simulation is an observable consequence of the submitted reasoning.
 
-# Testing instructions draft
+# Testing instructions
 
-Replace placeholders with final production details.
-
-1. Open **[PRODUCTION_URL]/judge**. No account or credentials are required.
-2. Select **Student view**.
+1. Open **<https://lost-lessons-lab.sanocks.workers.dev/judge>**. No account or credentials are required.
+2. Select **Preview as student**.
 3. Press **Run my solution** on the prepared `3/4 = 0.34` handwriting.
 4. Review the GPT-5.6 interpretation and watch the `4.08 m` bridge fail safely.
 5. Apply the prepared correction to `0.75`, submit, and watch the `9 m` bridge succeed.
 6. Press **Replay** or refresh the page to verify persistence.
-7. To test failure recovery, use **[exact controlled fallback instruction]** or the manual input offered after an analysis failure.
+7. If analysis fails, choose **Enter the value yourself**, enter `4.08`, run it, then repeat with `9` after applying the prepared correction.
 
 Expected result:
 
