@@ -22,7 +22,7 @@ export function LearningFeed({
   }
 
   return (
-    <div className="feed" aria-label="Learning room feed">
+    <>
       {events
         .filter((event) => !studentPerspective || event.visibility === "all")
         .map((event) => {
@@ -92,6 +92,6 @@ export function LearningFeed({
             </article>
           );
         })}
-    </div>
+    </>
   );
 }

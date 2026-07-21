@@ -1,14 +1,34 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
+import { CanvasWorkspace } from "./canvas/CanvasWorkspace";
 import { LearningFeed } from "./feed/LearningFeed";
 import {
   fetchRoomBootstrap,
   readRoomLocation,
   roomSocketUrl,
 } from "./room/room-client";
-import type { RoomBootstrap, SocketServerMessage } from "../shared/protocol";
+import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
+import type { CanvasOperation } from "../shared/canvas";
+import type { BridgeSimulationInputs } from "../shared/domain/bridge";
+import type {
+  RoomBootstrap,
+  SocketAuthenticatedMessage,
+  SocketServerMessage,
+} from "../shared/protocol";
 
 type ConnectionState = "connecting" | "connected" | "disconnected";
+
+const BridgeSimulation = lazy(() =>
+  import("./simulation/BridgeSimulation").then((module) => ({
+    default: module.BridgeSimulation,
+  })),
+);
+
+function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
+  const merged = new Map(current.map((item) => [item.id, item]));
+  for (const item of incoming) merged.set(item.id, item);
+  return [...merged.values()];
+}
 
 export function App() {
   const [roomLocation, setRoomLocation] = useState(() =>
@@ -16,16 +36,26 @@ export function App() {
   );
   const [room, setRoom] = useState<RoomBootstrap | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [commandError, setCommandError] = useState("");
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [previewStudent, setPreviewStudent] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
+  const [pendingCount, setPendingCount] = useState(0);
+  const socketRef = useRef<WebSocket | null>(null);
+  const pendingCommands = useRef(new Map<string, SocketAuthenticatedMessage>());
+  const lastSeenSeq = useRef(0);
+  const clientId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     const handleHashChange = () => {
       setRoom(null);
       setError(null);
+      setCommandError("");
       setConnection("connecting");
       setPreviewStudent(false);
+      pendingCommands.current.clear();
+      setPendingCount(0);
+      lastSeenSeq.current = 0;
       setRoomLocation(readRoomLocation(window.location));
     };
     window.addEventListener("hashchange", handleHashChange);
@@ -39,32 +69,182 @@ export function App() {
     }
 
     const controller = new AbortController();
-    let socket: WebSocket | null = null;
+    let stopped = false;
+    let reconnectTimer = 0;
+
+    const applyMessage = (message: SocketServerMessage) => {
+      if (message.type === "auth.accepted") {
+        setConnection("connected");
+        socketRef.current?.send(
+          JSON.stringify({
+            clientId: clientId.current,
+            payload: { lastSeenSeq: lastSeenSeq.current },
+            type: "room.resume",
+            v: 1,
+          }),
+        );
+        for (const pending of pendingCommands.current.values()) {
+          socketRef.current?.send(JSON.stringify(pending));
+        }
+        return;
+      }
+      if (message.type === "room.snapshot") {
+        lastSeenSeq.current = message.payload.roomSeq;
+        setRoom(message.payload);
+        return;
+      }
+      if (message.type === "room.delta") {
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.toSeq,
+        );
+        setRoom((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                attempts: mergeById(current.attempts, message.payload.attempts),
+                canvasOperations: [
+                  ...new Map(
+                    [
+                      ...current.canvasOperations,
+                      ...message.payload.canvasOperations,
+                    ].map((record) => [
+                      record.operation.clientOperationId,
+                      record,
+                    ]),
+                  ).values(),
+                ].sort((a, b) => a.seq - b.seq),
+                roomSeq: Math.max(current.roomSeq, message.payload.toSeq),
+                simulationRuns: mergeById(
+                  current.simulationRuns,
+                  message.payload.simulationRuns,
+                ).sort((a, b) => a.roomSeq - b.roomSeq),
+              },
+        );
+        return;
+      }
+      if (message.type === "canvas.operation") {
+        pendingCommands.current.delete(
+          message.payload.operation.clientOperationId,
+        );
+        setPendingCount(pendingCommands.current.size);
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.seq,
+        );
+        setRoom((current) => {
+          if (current === null) return current;
+          const withoutDuplicate = current.canvasOperations.filter(
+            (record) =>
+              record.operation.clientOperationId !==
+              message.payload.operation.clientOperationId,
+          );
+          return {
+            ...current,
+            canvasOperations: [...withoutDuplicate, message.payload].sort(
+              (a, b) => a.seq - b.seq,
+            ),
+            roomSeq: Math.max(current.roomSeq, message.payload.seq),
+          };
+        });
+        return;
+      }
+      if (message.type === "simulation.launch") {
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.run.roomSeq,
+        );
+        setRoom((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                attempts: mergeById(current.attempts, [
+                  message.payload.attempt,
+                ]),
+                roomSeq: Math.max(current.roomSeq, message.payload.run.roomSeq),
+                simulationRuns: mergeById(current.simulationRuns, [
+                  message.payload.run,
+                ]).sort((a, b) => a.roomSeq - b.roomSeq),
+              },
+        );
+        return;
+      }
+      if (message.type === "command.ack") {
+        const pending = pendingCommands.current.get(
+          message.payload.idempotencyKey,
+        );
+        if (message.payload.duplicate || pending?.type !== "canvas.operation") {
+          pendingCommands.current.delete(message.payload.idempotencyKey);
+        }
+        setPendingCount(pendingCommands.current.size);
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.roomSeq,
+        );
+        return;
+      }
+      if (message.type === "command.rejected") {
+        if (message.payload.requestId !== undefined) {
+          for (const [key, pending] of pendingCommands.current) {
+            if (
+              "requestId" in pending &&
+              pending.requestId === message.payload.requestId
+            ) {
+              pendingCommands.current.delete(key);
+            }
+          }
+          setPendingCount(pendingCommands.current.size);
+        }
+        setCommandError(
+          message.payload.reason === "permission_denied"
+            ? "That action is not permitted for this room role."
+            : message.payload.reason === "stale_canvas_sequence"
+              ? "The latest student stroke was not saved. Please try again."
+              : "The room could not accept that action. Please retry.",
+        );
+        return;
+      }
+      if (message.type === "auth.rejected") {
+        setError("This room link is not authorized.");
+      }
+    };
+
+    const connect = () => {
+      if (stopped) return;
+      setConnection("connecting");
+      const socket = new WebSocket(roomSocketUrl(roomLocation.roomId));
+      socketRef.current = socket;
+      socket.addEventListener("open", () => {
+        socket.send(
+          JSON.stringify({
+            clientId: clientId.current,
+            payload: { token: roomLocation.token },
+            type: "auth",
+            v: 1,
+          }),
+        );
+      });
+      socket.addEventListener("message", (event) => {
+        if (typeof event.data !== "string") return;
+        applyMessage(JSON.parse(event.data) as SocketServerMessage);
+      });
+      socket.addEventListener("close", () => {
+        if (socketRef.current === socket) socketRef.current = null;
+        if (!stopped) {
+          setConnection("disconnected");
+          reconnectTimer = window.setTimeout(connect, 750);
+        }
+      });
+      socket.addEventListener("error", () => setConnection("disconnected"));
+    };
 
     void fetchRoomBootstrap(roomLocation, controller.signal)
       .then((bootstrap) => {
+        lastSeenSeq.current = bootstrap.roomSeq;
         setRoom(bootstrap);
-        socket = new WebSocket(roomSocketUrl(roomLocation.roomId));
-        socket.addEventListener("open", () => {
-          socket?.send(
-            JSON.stringify({
-              clientId: crypto.randomUUID(),
-              payload: { token: roomLocation.token },
-              type: "auth",
-              v: 1,
-            }),
-          );
-        });
-        socket.addEventListener("message", (event) => {
-          if (typeof event.data !== "string") return;
-          const message = JSON.parse(event.data) as SocketServerMessage;
-          if (message.type === "auth.accepted") setConnection("connected");
-          if (message.type === "room.snapshot") setRoom(message.payload);
-          if (message.type === "auth.rejected")
-            setError("This room link is not authorized.");
-        });
-        socket.addEventListener("close", () => setConnection("disconnected"));
-        socket.addEventListener("error", () => setConnection("disconnected"));
+        connect();
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -75,10 +255,25 @@ export function App() {
       });
 
     return () => {
+      stopped = true;
       controller.abort();
-      socket?.close();
+      window.clearTimeout(reconnectTimer);
+      socketRef.current?.close();
+      socketRef.current = null;
     };
   }, [roomLocation]);
+
+  function queueCommand(
+    idempotencyKey: string,
+    message: SocketAuthenticatedMessage,
+  ): void {
+    setCommandError("");
+    pendingCommands.current.set(idempotencyKey, message);
+    setPendingCount(pendingCommands.current.size);
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(message));
+    }
+  }
 
   if (error !== null) {
     return (
@@ -104,10 +299,16 @@ export function App() {
 
   const isTeacher = room.role === "teacher";
   const studentPerspective = room.role === "student" || previewStudent;
+  const activeLayer = studentPerspective ? "student" : "teacher";
   const studentLink =
     isTeacher && room.studentCapability !== undefined
       ? `${window.location.origin}/r/${room.roomId}#token=${room.studentCapability}`
       : null;
+  const latestStudentSeq = room.canvasOperations.reduce(
+    (latest, record) =>
+      record.layer === "student" ? Math.max(latest, record.seq) : latest,
+    0,
+  );
 
   async function copyStudentLink(): Promise<void> {
     if (studentLink === null) return;
@@ -117,6 +318,36 @@ export function App() {
     } catch {
       setCopyStatus("Copy unavailable. Select the link field instead.");
     }
+  }
+
+  function sendCanvasOperation(operation: CanvasOperation): void {
+    const requestId = crypto.randomUUID();
+    queueCommand(operation.clientOperationId, {
+      clientId: clientId.current,
+      payload: {
+        operation,
+        previewAsStudent: isTeacher && previewStudent,
+      },
+      requestId,
+      type: "canvas.operation",
+      v: 1,
+    });
+  }
+
+  function submitManualAttempt(inputs: BridgeSimulationInputs): void {
+    const idempotencyKey = crypto.randomUUID();
+    queueCommand(idempotencyKey, {
+      clientId: clientId.current,
+      payload: {
+        idempotencyKey,
+        inputs,
+        previewAsStudent: isTeacher && previewStudent,
+        sourceCanvasSeq: latestStudentSeq,
+      },
+      requestId: crypto.randomUUID(),
+      type: "attempt.manual-capture",
+      v: 1,
+    });
   }
 
   return (
@@ -132,7 +363,9 @@ export function App() {
           >
             {connection === "connected"
               ? "Live room connected"
-              : "Connecting to live room"}
+              : connection === "disconnected"
+                ? "Reconnecting — work is queued"
+                : "Connecting to live room"}
           </span>
           {isTeacher && (
             <button
@@ -183,11 +416,59 @@ export function App() {
         </section>
       )}
 
-      <LearningFeed
-        events={room.events}
-        studentPerspective={studentPerspective}
-      />
+      <div className="feed" aria-label="Learning room feed">
+        <LearningFeed
+          events={room.events}
+          studentPerspective={studentPerspective}
+        />
+        <CanvasWorkspace
+          activeLayer={activeLayer}
+          connected={connection === "connected"}
+          onOperation={sendCanvasOperation}
+          records={room.canvasOperations}
+          roomSeq={room.roomSeq}
+        />
+        {studentPerspective ? (
+          <ManualBridgePanel
+            disabled={connection !== "connected"}
+            onSubmit={submitManualAttempt}
+            pendingOperations={pendingCount}
+          />
+        ) : (
+          <section className="teacher-note-card">
+            <strong>Teacher annotation mode</strong>
+            <p>
+              Dashed teacher marks are shared live but excluded from every
+              learner attempt. Choose Preview as student to submit the learner
+              layer.
+            </p>
+          </section>
+        )}
+        {room.simulationRuns.map((run) => {
+          const attempt = room.attempts.find(
+            (candidate) => candidate.id === run.attemptId,
+          );
+          return (
+            <Suspense
+              fallback={
+                <section className="simulation-card" role="status">
+                  Preparing the physics scene…
+                </section>
+              }
+              key={run.id}
+            >
+              <BridgeSimulation
+                run={run}
+                sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+              />
+            </Suspense>
+          );
+        })}
+      </div>
 
+      <p className="command-error" role="alert">
+        {commandError}
+      </p>
       <footer className="room-footer">
         <p>
           Do not include names or personal information. Review every AI

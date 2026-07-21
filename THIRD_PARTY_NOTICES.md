@@ -2,7 +2,7 @@
 
 This file must be updated whenever implementation dependencies, fonts, images, sounds, music, or other assets are added.
 
-The M1 application shell uses only package-manager dependencies and original code/CSS. It contains no third-party fonts, images, audio, or other runtime assets.
+The application uses package-manager dependencies and original code/CSS/primitive graphics. It contains no third-party fonts, images, audio, or other media assets.
 
 Before submission, record for every dependency or asset:
 
@@ -11,6 +11,8 @@ Before submission, record for every dependency or asset:
 | React / React DOM | 19.2.7 | Client UI | MIT | React copyright/license preserved in packages | npm metadata and lockfile, 2026-07-21 |
 | Hono | 4.12.31 | Worker routing | MIT | Hono copyright/license preserved in package | npm metadata and lockfile, 2026-07-21 |
 | Zod | 4.4.3 | Runtime boundary validation | MIT | Zod copyright/license preserved in package | npm metadata and lockfile, 2026-07-21 |
+| PixiJS | 8.19.0 | Parameterized 2D simulation rendering | MIT | PixiJS copyright/license preserved in package | npm metadata and lockfile, 2026-07-21 |
+| Planck | 1.5.0 | Fixed-step Box2D-style bridge physics | MIT | Planck contributors' copyright/license preserved in package | npm metadata and lockfile, 2026-07-21 |
 | Cloudflare Vite plugin | 1.45.1 | Cloudflare runtime development/build | MIT | Cloudflare copyright/license preserved in package | npm metadata and lockfile, 2026-07-21 |
 | Cloudflare Workers Vitest pool | 0.18.6 | Worker and Durable Object integration tests | MIT | Cloudflare copyright/license preserved in package | npm metadata and lockfile, 2026-07-21 |
 | Cloudflare Workers types | 5.20260721.1 | Worker TypeScript definitions | MIT OR Apache-2.0 | Generated/runtime notices preserved | npm metadata and lockfile, 2026-07-21 |

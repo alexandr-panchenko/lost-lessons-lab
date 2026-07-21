@@ -26,6 +26,8 @@ Expected visible result:
 - the corrected value produces a safe crossing and a progress achievement;
 - a teacher can annotate the learner's canvas in realtime without those marks entering the learner's submitted answer.
 
+The currently deployed M3 slice supports the complete non-AI path: shared layered handwriting, immutable attempt cutoffs, manual bridge values, deterministic classification, real PixiJS + Planck physics, replay, and reload persistence. GPT-5.6 handwriting interpretation is added and enabled in M4; until then the UI labels manual entry explicitly and makes no fake AI claim.
+
 See [`JUDGING.md`](JUDGING.md) for the final concise instructions.
 
 ## Video

@@ -100,6 +100,140 @@ if (invalidResponse.status !== 401) {
   throw new Error(`Invalid capability returned ${invalidResponse.status}.`);
 }
 
+const socketUrl = new URL(
+  `/api/rooms/${firstRoom.roomId}/socket`,
+  productionOrigin,
+);
+socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
+const socket = new WebSocket(socketUrl);
+const socketMessages: unknown[] = [];
+socket.addEventListener("message", (event) => {
+  if (typeof event.data === "string") {
+    socketMessages.push(JSON.parse(event.data) as unknown);
+  }
+});
+
+async function waitForSocketType(type: string) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const message = socketMessages.find(
+      (candidate) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        "type" in candidate &&
+        candidate.type === type,
+    );
+    if (message !== undefined) return message;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Production WebSocket did not send ${type}.`);
+}
+
+await new Promise<void>((resolve, reject) => {
+  const timeout = setTimeout(
+    () => reject(new Error("Production WebSocket did not open.")),
+    5_000,
+  );
+  socket.addEventListener("open", () => {
+    clearTimeout(timeout);
+    resolve();
+  });
+  socket.addEventListener("error", () => {
+    clearTimeout(timeout);
+    reject(new Error("Production WebSocket failed."));
+  });
+});
+
+const smokeClientId = crypto.randomUUID();
+socket.send(
+  JSON.stringify({
+    clientId: smokeClientId,
+    payload: { token: teacher.studentCapability },
+    type: "auth",
+    v: 1,
+  }),
+);
+await waitForSocketType("auth.accepted");
+const smokeOperationId = crypto.randomUUID();
+socket.send(
+  JSON.stringify({
+    clientId: smokeClientId,
+    payload: {
+      operation: {
+        clientOperationId: smokeOperationId,
+        layer: "student",
+        opacity: 1,
+        operation: "stroke.add",
+        points: [
+          { x: 0.2, y: 0.3 },
+          { x: 0.7, y: 0.6 },
+        ],
+        strokeId: crypto.randomUUID(),
+        tool: "pen",
+        width: 4,
+        workspaceId: "bridge-workspace-v1",
+      },
+      previewAsStudent: false,
+    },
+    requestId: crypto.randomUUID(),
+    type: "canvas.operation",
+    v: 1,
+  }),
+);
+const operationMessage = z
+  .object({
+    payload: z.object({ seq: z.number().int().positive() }),
+    type: z.literal("canvas.operation"),
+  })
+  .passthrough()
+  .parse(await waitForSocketType("canvas.operation"));
+
+socket.send(
+  JSON.stringify({
+    clientId: smokeClientId,
+    payload: {
+      idempotencyKey: crypto.randomUUID(),
+      inputs: { deployedLengthMeters: 4.08, fractionAsDecimal: 0.34 },
+      previewAsStudent: false,
+      sourceCanvasSeq: operationMessage.payload.seq,
+    },
+    requestId: crypto.randomUUID(),
+    type: "attempt.manual-capture",
+    v: 1,
+  }),
+);
+const launch = z
+  .object({
+    payload: z.object({
+      run: z.object({
+        outcome: z.object({
+          resultClass: z.literal("bridge_far_too_short"),
+        }),
+      }),
+    }),
+    type: z.literal("simulation.launch"),
+  })
+  .passthrough()
+  .parse(await waitForSocketType("simulation.launch"));
+if (launch.payload.run.outcome.resultClass !== "bridge_far_too_short") {
+  throw new Error("Production deterministic bridge classification failed.");
+}
+socket.close();
+
+const persistedStudent = BootstrapSchema.extend({
+  attempts: z.array(z.unknown()),
+  canvasOperations: z.array(z.unknown()),
+  simulationRuns: z.array(z.unknown()),
+}).parse(
+  await (await bootstrap(firstRoom.roomId, teacher.studentCapability)).json(),
+);
+if (
+  persistedStudent.canvasOperations.length !== 1 ||
+  persistedStudent.attempts.length !== 1 ||
+  persistedStudent.simulationRuns.length !== 1
+) {
+  throw new Error("Production M3 room state did not persist.");
+}
+
 const roomDocument = await fetch(
   new URL(`/r/${firstRoom.roomId}`, productionOrigin),
 );
@@ -108,5 +242,5 @@ if (!roomDocument.ok || !roomDocument.headers.get("content-security-policy")) {
 }
 
 console.log(
-  `Production smoke passed for ${health.service}: isolated rooms, role filtering, invalid-capability rejection, and protected room headers.`,
+  `Production smoke passed for ${health.service}: isolated rooms, role filtering, realtime canvas persistence, deterministic manual bridge capture, invalid-capability rejection, and protected room headers.`,
 );

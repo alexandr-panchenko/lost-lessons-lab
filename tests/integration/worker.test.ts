@@ -20,4 +20,24 @@ describe("Cloudflare Worker shell", () => {
 
     await expect(room.ping()).resolves.toBe("room-runtime-ready");
   });
+
+  it("holds exactly one attempt-processing lock and releases by owner", async () => {
+    const room = env.ROOMS.getByName("m3-attempt-lock-room");
+
+    await expect(
+      room.acquireAttemptProcessingLock("attempt-lock-owner-one"),
+    ).resolves.toBe(true);
+    await expect(
+      room.acquireAttemptProcessingLock("attempt-lock-owner-two"),
+    ).resolves.toBe(false);
+    await expect(
+      room.releaseAttemptProcessingLock("attempt-lock-owner-two"),
+    ).resolves.toBe(false);
+    await expect(
+      room.releaseAttemptProcessingLock("attempt-lock-owner-one"),
+    ).resolves.toBe(true);
+    await expect(
+      room.acquireAttemptProcessingLock("attempt-lock-owner-two"),
+    ).resolves.toBe(true);
+  });
 });
