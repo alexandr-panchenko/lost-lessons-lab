@@ -660,6 +660,18 @@ export function App() {
 
   return (
     <main className="room-page">
+      <a
+        className="skip-link"
+        href="#learning-feed"
+        onClick={(event) => {
+          event.preventDefault();
+          const feed = document.querySelector<HTMLElement>("#learning-feed");
+          feed?.focus({ preventScroll: true });
+          feed?.scrollIntoView({ block: "start" });
+        }}
+      >
+        Skip to the learning feed
+      </a>
       <header className="room-header">
         <a className="brand" href="/">
           Lost Lessons Lab
@@ -719,6 +731,12 @@ export function App() {
           Write a real solution, see how it was interpreted, and let the numbers
           control the physical result.
         </p>
+        <p className="room-intro__next">
+          <strong>Next:</strong>{" "}
+          {studentPerspective
+            ? "review the problem, then write or run the prepared solution."
+            : "choose the learner’s gap, then preview their workspace."}
+        </p>
       </section>
 
       {isTeacher && !previewStudent && studentLink !== null && (
@@ -746,7 +764,13 @@ export function App() {
         </section>
       )}
 
-      <div className="feed" aria-label="Learning room feed">
+      <div
+        className="feed"
+        id="learning-feed"
+        aria-label="Learning room feed"
+        role="region"
+        tabIndex={-1}
+      >
         <LearningFeed
           events={room.events}
           studentPerspective={studentPerspective}

@@ -2,7 +2,7 @@
 
 This file must be updated whenever implementation dependencies, fonts, images, sounds, music, or other assets are added.
 
-The application uses package-manager dependencies and original code/CSS/primitive graphics. It contains no third-party fonts, images, audio, or other media assets.
+The application uses package-manager dependencies and original code, CSS, PixiJS primitive graphics, and Web Audio oscillator tones. It contains no third-party fonts, images, audio files, or other media assets.
 
 Before submission, record for every dependency or asset:
 

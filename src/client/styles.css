@@ -39,6 +39,29 @@ input {
   outline-offset: 3px;
 }
 
+:focus-visible {
+  outline: 3px solid #bd4b24;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 20;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid #fff;
+  border-radius: 0.6rem;
+  color: #fff;
+  background: #17365d;
+  font-weight: 900;
+  transform: translateY(-180%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .room-page {
   width: min(100% - 2rem, 64rem);
   min-height: 100vh;
@@ -95,7 +118,11 @@ input {
 }
 
 .room-intro {
-  padding: clamp(2.5rem, 8vw, 5rem) 0 2rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 0.7fr);
+  gap: 0.8rem 2rem;
+  align-items: end;
+  padding: clamp(2rem, 6vw, 4rem) 0 2rem;
 }
 
 .room-intro__role,
@@ -108,19 +135,40 @@ input {
   text-transform: uppercase;
 }
 
+.room-intro__role,
+.room-intro h1 {
+  grid-column: 1;
+}
+
 .room-intro h1 {
   max-width: 12ch;
   margin: 0;
-  font-size: clamp(3rem, 10vw, 6.5rem);
-  line-height: 0.9;
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  line-height: 0.92;
   letter-spacing: -0.06em;
 }
 
 .room-intro > p:last-child {
+  margin: 0;
+}
+
+.room-intro > p:not(.room-intro__role):not(.room-intro__next) {
+  grid-column: 1;
   max-width: 42rem;
-  margin: 1.5rem 0 0;
-  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+  margin: 0.7rem 0 0;
+  font-size: clamp(1.05rem, 2.5vw, 1.3rem);
   line-height: 1.5;
+}
+
+.room-intro__next {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  padding: 1rem 1.1rem;
+  border-left: 0.35rem solid #e8ad42;
+  border-radius: 0.5rem;
+  background: #fffdf8;
+  box-shadow: 0.2rem 0.2rem 0 #d8c8aa;
+  line-height: 1.45;
 }
 
 .feed {
@@ -621,7 +669,7 @@ blockquote {
 }
 
 .tool-button {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0.5rem 0.8rem;
   border: 1px solid #526176;
   border-radius: 0.65rem;
@@ -812,6 +860,18 @@ blockquote {
 }
 
 @media (max-width: 44rem) {
+  .room-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .room-intro__role,
+  .room-intro h1,
+  .room-intro > p:not(.room-intro__role):not(.room-intro__next),
+  .room-intro__next {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
   .room-header,
   .room-header__controls,
   .feed-card__heading-row {

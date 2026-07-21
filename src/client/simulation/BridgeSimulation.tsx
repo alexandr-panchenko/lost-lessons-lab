@@ -15,6 +15,7 @@ import {
   chooseRenderQuality,
   shouldForceRendererFailure,
 } from "../../simulations/core/render-quality";
+import { useSimulationSound } from "../accessibility/useSimulationSound";
 
 type BridgeSimulationProps = {
   run: Extract<SimulationRun, { templateId: "bridge" }>;
@@ -31,10 +32,13 @@ export function BridgeSimulation({
   const skipRef = useRef<(() => void) | null>(null);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState<1 | 2>(1);
-  const [muted, setMuted] = useState(true);
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<BridgeWorldStatus>("running");
   const [rendererError, setRendererError] = useState(false);
+  const { muted, toggleSound } = useSimulationSound({
+    complete: status !== "running",
+    successful: run.outcome.isMathematicallyCorrect,
+  });
   const [quality] = useState(() =>
     chooseRenderQuality({
       devicePixelRatio: window.devicePixelRatio,
@@ -79,6 +83,16 @@ export function BridgeSimulation({
       scene
         .rect(0, 0, width, height)
         .fill({ color: 0xccebf1 })
+        .circle(width * 0.84, height * 0.17, Math.max(24, width * 0.04))
+        .fill({ color: 0xf6c453, alpha: 0.82 })
+        .moveTo(0, worldY(1.1))
+        .lineTo(width * 0.2, worldY(2.6))
+        .lineTo(width * 0.37, worldY(1.1))
+        .fill({ color: 0x86b58d, alpha: 0.55 })
+        .moveTo(width * 0.62, worldY(1.1))
+        .lineTo(width * 0.79, worldY(2.4))
+        .lineTo(width, worldY(1.1))
+        .fill({ color: 0x86b58d, alpha: 0.55 })
         .rect(0, worldY(0), worldX(0), height - worldY(0))
         .fill({ color: 0x6a9b62 })
         .rect(
@@ -90,20 +104,64 @@ export function BridgeSimulation({
         .fill({ color: 0x6a9b62 })
         .rect(
           worldX(0),
+          worldY(-2.55),
+          worldX(BRIDGE_GAP_METERS) - worldX(0),
+          height - worldY(-2.55),
+        )
+        .fill({ color: 0x4ca7bd, alpha: 0.72 })
+        .rect(
+          worldX(0),
           worldY(0.08),
           worldX(simulation.bridgeLengthMeters) - worldX(0),
           Math.max(8, height * 0.025),
         )
         .fill({ color: 0xd88b43 })
-        .rect(worldX(vehicle.x) - 18, worldY(vehicle.y) - 12, 36, 20)
+        .rect(worldX(0) - 7, worldY(0), 14, worldY(-1.25) - worldY(0))
+        .rect(
+          worldX(BRIDGE_GAP_METERS) - 7,
+          worldY(0),
+          14,
+          worldY(-1.25) - worldY(0),
+        )
+        .fill({ color: 0x355f72 })
+        .roundRect(worldX(vehicle.x) - 21, worldY(vehicle.y) - 14, 42, 21, 5)
         .fill({ color: 0x263a5a })
+        .roundRect(worldX(vehicle.x) + 1, worldY(vehicle.y) - 23, 17, 13, 3)
+        .fill({ color: 0x263a5a })
+        .rect(worldX(vehicle.x) + 5, worldY(vehicle.y) - 20, 9, 7)
+        .fill({ color: 0xbde8f0 })
+        .circle(worldX(vehicle.x) - 5, worldY(vehicle.y) - 17, 3)
+        .fill({ color: 0xf6c453 })
         .circle(worldX(vehicle.x) - 11, worldY(vehicle.y) + 9, 6)
         .circle(worldX(vehicle.x) + 11, worldY(vehicle.y) + 9, 6)
-        .fill({ color: 0xf6c453 });
+        .fill({ color: 0xf6c453 })
+        .circle(worldX(BRIDGE_GAP_METERS + 1.25), worldY(0.62), 8)
+        .fill({ color: 0x7a3f2b })
+        .rect(worldX(BRIDGE_GAP_METERS + 1.25) - 5, worldY(0.46), 10, 22)
+        .fill({ color: 0xf0b94d });
       if (terminal === "recovered") {
         scene
           .circle(worldX(vehicle.x), worldY(-2.5), 28)
-          .fill({ color: 0xf6c453, alpha: 0.35 });
+          .stroke({ color: 0xf6c453, alpha: 0.65, width: 5 })
+          .circle(worldX(vehicle.x), worldY(-2.5), 16)
+          .stroke({ color: 0xffffff, alpha: 0.7, width: 3 });
+      }
+      if (terminal === "crossed" && !reducedMotion) {
+        for (let ray = 0; ray < 6; ray += 1) {
+          const angle = (ray / 6) * Math.PI * 2;
+          const centerX = worldX(vehicle.x);
+          const centerY = worldY(vehicle.y) - 20;
+          scene
+            .moveTo(
+              centerX + Math.cos(angle) * 18,
+              centerY + Math.sin(angle) * 18,
+            )
+            .lineTo(
+              centerX + Math.cos(angle) * 30,
+              centerY + Math.sin(angle) * 30,
+            )
+            .stroke({ color: 0xf6c453, width: 4 });
+        }
       }
       app.render();
     };
@@ -268,12 +326,13 @@ export function BridgeSimulation({
           Skip to result
         </button>
         <button
-          aria-pressed={muted}
+          aria-label={muted ? "Turn sound on" : "Mute sound"}
+          aria-pressed={!muted}
           className="tool-button"
-          onClick={() => setMuted((value) => !value)}
+          onClick={toggleSound}
           type="button"
         >
-          {muted ? "Sound muted" : "Mute sound"}
+          {muted ? "Sound muted" : "Sound on"}
         </button>
       </div>
       <div className="simulation-transcript" aria-live="polite">

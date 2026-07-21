@@ -13,7 +13,7 @@ Implementation status is tracked in [`STATUS.md`](STATUS.md).
 ## 60–90 second judge path
 
 1. Open `/judge`; it creates a fresh real room and redirects to its unique address.
-2. Switch to **Student view** and submit the prepared handwritten fraction mistake.
+2. Choose **Preview as student** and submit the prepared handwritten fraction mistake.
 3. Watch GPT-5.6 show how it read the work and extract `4.08 m`.
 4. Let the bridge simulation run: the bridge is too short and the vehicle falls safely into a comic rescue area.
 5. Apply the prepared editable correction to `3/4 = 0.75`, submit again, and watch the successful crossing.
@@ -51,6 +51,21 @@ teacher identifies a gap
 ```
 
 The product is organized by **skills and knowledge gaps**, not by age or school grade.
+
+## Accessibility and original media
+
+The room begins with a visible next-action cue and a keyboard skip link. Every
+non-drawing action uses a native control with a visible focus ring; the canvas
+has a text name and instructions, while recognized work, verified inputs, and
+simulation outcomes remain available outside canvas pixels. Status changes use
+polite live regions. Reduced-motion mode advances directly to the same semantic
+result and lowers decorative rendering detail.
+
+Simulation sound is muted by default. Turning it on is an explicit user action
+that enables short tones synthesized locally with the Web Audio API; no sound
+file is downloaded and no audio autoplays. Visuals are original CSS and PixiJS
+primitives. The application includes no third-party image, font, music, or sound
+asset.
 
 ## Frozen Build Week scope
 
@@ -135,6 +150,7 @@ is available as:
 
 ```bash
 PRODUCTION_URL=https://your-worker.example bun run smoke:fallback:prod
+PRODUCTION_URL=https://your-worker.example bun run smoke:accessibility:prod
 ```
 
 The drill injects one client-visible AI-disabled response without changing the

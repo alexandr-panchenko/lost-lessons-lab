@@ -14,6 +14,7 @@ import {
   chooseRenderQuality,
   shouldForceRendererFailure,
 } from "../../simulations/core/render-quality";
+import { useSimulationSound } from "../accessibility/useSimulationSound";
 
 type SpeedRun = Extract<SimulationRun, { templateId: "speed" }>;
 
@@ -30,10 +31,13 @@ export function SpeedSimulation({
   const skipRef = useRef<(() => void) | null>(null);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState<1 | 2>(1);
-  const [muted, setMuted] = useState(true);
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<SpeedWorldStatus>("running");
   const [rendererError, setRendererError] = useState(false);
+  const { muted, toggleSound } = useSimulationSound({
+    complete: status !== "running",
+    successful: run.outcome.isMathematicallyCorrect,
+  });
   const [quality] = useState(() =>
     chooseRenderQuality({
       devicePixelRatio: window.devicePixelRatio,
@@ -267,12 +271,13 @@ export function SpeedSimulation({
           Skip to result
         </button>
         <button
-          aria-pressed={muted}
+          aria-label={muted ? "Turn sound on" : "Mute sound"}
+          aria-pressed={!muted}
           className="tool-button"
-          onClick={() => setMuted((value) => !value)}
+          onClick={toggleSound}
           type="button"
         >
-          {muted ? "Sound muted" : "Mute sound"}
+          {muted ? "Sound muted" : "Sound on"}
         </button>
       </div>
       <div className="simulation-transcript" aria-live="polite">

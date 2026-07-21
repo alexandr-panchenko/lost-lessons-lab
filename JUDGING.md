@@ -10,7 +10,7 @@
 
 ## Steps
 
-1. Open `/judge`; wait for the fresh room to load, then select **Student view**.
+1. Open `/judge`; wait for the fresh room to load, then choose **Preview as student**.
 2. Use the prepared handwritten mistake and press **Run my solution**.
 3. Read the GPT-5.6 interpretation, then let the countdown start the bridge simulation.
 4. After the comic failure, press **Apply prepared correction**, then press **Run my solution** again.
@@ -23,6 +23,15 @@ The first submission builds a `4.08 m` bridge and fails safely. The second build
 ## Reset
 
 Use **Reset current task** in the room. Reopening `/judge` always creates a completely new room.
+
+## Accessibility controls
+
+Press `Tab` once from the top of the page to reveal **Skip to the learning
+feed**. All actions except free-form drawing are keyboard controls, and the
+prepared handwriting keeps the judge path operable without drawing. Simulation
+sound starts muted and only enables after **Turn sound on** is activated. A
+reduced-motion browser preference skips animation while retaining the verified
+text outcome.
 
 ## AI failure fallback
 
