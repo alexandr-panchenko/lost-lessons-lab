@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.5
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Validate
+        run: bun run validate
+      - name: Scan tracked source for common secret patterns
+        shell: bash
+        run: |
+          if git grep -nE '(sk-[A-Za-z0-9_-]{20,}|OPENAI_API_KEY=.+|CLOUDFLARE_API_TOKEN=.+)' -- . ':!*.md'; then
+            echo "Potential secret found in tracked source."
+            exit 1
+          fi

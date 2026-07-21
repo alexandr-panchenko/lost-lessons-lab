@@ -38,6 +38,12 @@ Do not use:
 | OpenAI model ID observed in production | `gpt-5.6` planned; pending runtime evidence | PENDING |
 | License | `LICENSE`, Apache-2.0 | PASS for design packet only |
 
+## Milestone implementation evidence
+
+| Milestone | Exact evidence | Verification | Status |
+|---|---|---|---|
+| M1 — reproducible environment | `package.json`; `bun.lock`; `wrangler.jsonc`; `.github/workflows/ci.yml`; `src/client/App.tsx`; `src/worker/index.ts`; `src/worker/room/RoomDurableObject.ts`; `tests/unit/environment.test.ts`; `tests/integration/worker.test.ts`; `tests/e2e/shell.spec.ts`; `scripts/finalize-build.ts` | On 2026-07-21, `bun install --frozen-lockfile` and every documented M1 command passed; `bun run validate` covered format, lint, strict types, 2 unit tests, 2 Cloudflare Worker/SQLite DO integration tests, production build, and 2 Chromium E2E tests. `git diff --check`, non-Markdown tracked/history scans, generated `.dev.vars` removal, actual-value artifact scan, and client-bundle scan passed. | PASS |
+
 ## Eligibility and submission matrix
 
 | Requirement / criterion | Claim | Exact evidence target | URL / file / video timestamp | Verification | Status |

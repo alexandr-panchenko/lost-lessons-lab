@@ -74,22 +74,24 @@ See [`docs/01-PRODUCT-BRIEF.md`](docs/01-PRODUCT-BRIEF.md) for the complete scop
 
 ## Local setup
 
-Prerequisites:
+Prerequisites for the current repository shell:
 
-- Bun;
-- a Cloudflare account for deployed Durable Objects and R2;
-- an OpenAI API project with access to `gpt-5.6`;
+- Bun 1.2.5 or newer;
 - Git.
 
-The repository is currently a design packet. Milestone 1 must make these commands real and keep them stable:
+Cloudflare and OpenAI credentials are not required for the M1 local shell or its automated validation. They become necessary only at the deployment and live-AI milestones described in the implementation plan.
+
+From a clean clone:
 
 ```bash
-bun install
+bun install --frozen-lockfile
 cp .env.example .dev.vars
 bun run dev
 ```
 
-Required local secrets in `.dev.vars`:
+Open <http://127.0.0.1:5173>. The page reports the status of `GET /api/health` from the same Cloudflare Worker runtime. The guided room is intentionally not implemented until M2.
+
+When later milestones are active, set these local-only values in `.dev.vars`:
 
 ```text
 OPENAI_API_KEY=...
@@ -100,9 +102,10 @@ Never commit `.dev.vars`.
 
 ## Tests
 
-Canonical commands after Milestone 1:
+Canonical commands:
 
 ```bash
+bun run format
 bun run format:check
 bun run lint
 bun run typecheck
@@ -111,9 +114,13 @@ bun run test:integration
 bun run test:e2e
 bun run build
 bun run validate
+bun run deploy
+bun run smoke:prod
 ```
 
-A separate opt-in live model evaluation validates real handwriting against GPT-5.6:
+`bun run validate` runs formatting, lint, strict types, unit tests, the Cloudflare Worker/Durable Object integration suite, a production build, and mocked Playwright E2E. The production smoke command requires `PRODUCTION_URL` once M2 deploys the application.
+
+A separate opt-in live model evaluation is reserved for M4 and later:
 
 ```bash
 bun run test:live-ai
@@ -121,7 +128,7 @@ bun run test:live-ai
 
 See [`docs/06-TEST-PLAN.md`](docs/06-TEST-PLAN.md).
 
-## Architecture
+## Target architecture
 
 ```text
 React learning feed
@@ -142,9 +149,9 @@ Room data lives with the room Durable Object. Visible binary media lives in priv
 
 See [`docs/04-TECHNICAL-DESIGN.md`](docs/04-TECHNICAL-DESIGN.md).
 
-## GPT-5.6 usage
+## GPT-5.6 usage (M4 target)
 
-The production AI path uses the OpenAI Responses API with `gpt-5.6`, image input, `store: false`, and strict Structured Outputs.
+The production AI path will use the OpenAI Responses API with `gpt-5.6`, image input, `store: false`, and strict Structured Outputs. M1 contains no AI call or simulated AI response.
 
 GPT-5.6 performs genuinely multimodal work:
 

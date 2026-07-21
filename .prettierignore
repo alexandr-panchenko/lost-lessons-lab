@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.wrangler
+playwright-report
+test-results
+bun.lock
+worker-configuration.d.ts
+*.md
+docs
