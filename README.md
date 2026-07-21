@@ -135,7 +135,7 @@ bun run deploy
 bun run smoke:prod
 ```
 
-`bun run validate` runs formatting, lint, strict types, unit tests, the Cloudflare Worker/Durable Object integration suite, a production build, and mocked Playwright E2E. The production smoke command requires `PRODUCTION_URL` once M2 deploys the application.
+`bun run validate` runs formatting, lint, strict types, unit tests, the Cloudflare Worker/Durable Object integration suite, a production build, a tracked/history/build secret audit, and mocked Playwright E2E. The production smoke command defaults to the judged URL; set `PRODUCTION_URL` only to verify another deployment.
 
 A separate opt-in live model evaluation is reserved for M4 and later:
 

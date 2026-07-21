@@ -688,24 +688,29 @@ Update `THIRD_PARTY_NOTICES.md` with exact package and asset versions before rel
 
 ## Pre-deployment security checklist
 
-- [ ] `.dev.vars` and `.env` ignored.
-- [ ] No secret in Git history.
-- [ ] No OpenAI key in browser bundle or source map.
-- [ ] No raw capability in logs.
-- [ ] Room responses use `no-store` and no-referrer.
-- [ ] Teacher setup denied to learner capability.
-- [ ] R2 denied without valid room capability.
-- [ ] Media size/type/dimensions validated.
-- [ ] HTML output encoded.
-- [ ] Structured Outputs and semantic validation active.
-- [ ] One analysis lock releases on every path.
-- [ ] Rate limits configured.
+- [x] `.dev.vars` and `.env` ignored.
+- [x] No secret in Git history.
+- [x] No OpenAI key in browser bundle or source map.
+- [x] No raw capability in logs.
+- [x] Room responses use `no-store` and no-referrer.
+- [x] Teacher setup denied to learner capability.
+- [x] R2 denied without valid room capability.
+- [x] Media size/type/dimensions validated.
+- [x] HTML output encoded.
+- [x] Structured Outputs and semantic validation active.
+- [x] One analysis lock releases on every path.
+- [x] Rate limits configured.
 - [ ] OpenAI spend/rate limits configured.
-- [ ] `AI_ENABLED` tested.
-- [ ] Debug logging disabled.
-- [ ] Clean incognito judge path has no challenge.
-- [ ] Production rollback version recorded.
-- [ ] Third-party licenses reviewed.
+- [x] `AI_ENABLED` tested.
+- [x] Debug logging disabled.
+- [x] Clean incognito judge path has no challenge.
+- [x] Production rollback version recorded.
+- [x] Third-party licenses reviewed.
+
+The unchecked OpenAI dashboard item is owner-controlled and cannot be inferred
+from an API key. Confirm it in the private M9 submission checklist before the
+release tag; the tested application-level rate limits and `AI_ENABLED` kill
+switch remain active independently.
 
 ## Incident actions
 
