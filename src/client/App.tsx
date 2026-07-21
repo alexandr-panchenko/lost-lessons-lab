@@ -711,9 +711,20 @@ export function App() {
   }
 
   async function resetCurrentTask(): Promise<void> {
-    if (roomLocation === null || resetting) return;
+    if (roomLocation === null || room === null || resetting) return;
+    const roomBeforeReset = room;
     setResetting(true);
     setCommandError("");
+    // Unmount private attempt images before the Worker removes their R2
+    // objects. If reset fails, the complete prior room is restored below.
+    setRoom({
+      ...roomBeforeReset,
+      achievements: [],
+      analyses: [],
+      attempts: [],
+      canvasOperations: [],
+      simulationRuns: [],
+    });
     try {
       const reset = await resetRoom(roomLocation);
       setRoom(reset);
@@ -725,6 +736,7 @@ export function App() {
       setPendingCount(0);
       lastSeenSeq.current = reset.roomSeq;
     } catch (reason) {
+      setRoom(roomBeforeReset);
       setCommandError(
         reason instanceof Error && reason.message === "attempt_in_progress"
           ? "Wait for the current analysis to finish before resetting."
