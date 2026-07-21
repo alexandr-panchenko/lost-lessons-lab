@@ -9,7 +9,6 @@ import {
   BRIDGE_FIXED_STEP_SECONDS,
   BRIDGE_GAP_METERS,
   BRIDGE_MAX_STEPS,
-  BRIDGE_WATER_SURFACE_Y,
   createBridgeWorld,
   type BridgeVisualPhase,
   type BridgeWorldStatus,
@@ -19,27 +18,33 @@ import {
   shouldForceRendererFailure,
 } from "../../simulations/core/render-quality";
 import { useSimulationSound } from "../accessibility/useSimulationSound";
+import { LearnerBridgeFeedback } from "../feed/LearnerBridgeFeedback";
 
 type BridgeSimulationProps = {
+  onTryAgain: () => void;
   run: Extract<SimulationRun, { templateId: "bridge" }>;
-  sourceCanvasSeq: number;
+  studentPerspective: boolean;
 };
 
 type ScreenPoint = { x: number; y: number };
 
 const PHASE_LABELS: Record<BridgeVisualPhase, string> = {
   aftermath: "Rescue bubble deployed",
+  collision: "Construction sign collision",
   crossed: "Crossing complete",
   deploying: "Deploying bridge sections",
   driving: "Vehicle approaching the gap",
-  failing: "Unsupported section breaking",
   falling: "Vehicle falling",
+  peeling: "Outer deck peeling away",
+  sagging: "Bridge bending under load",
+  snapping: "Support cable snapped",
   splash: "River impact",
 };
 
 export function BridgeSimulation({
+  onTryAgain,
   run,
-  sourceCanvasSeq,
+  studentPerspective,
 }: BridgeSimulationProps) {
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
@@ -106,7 +111,7 @@ export function BridgeSimulation({
       setPhaseHistory((current) =>
         current.at(-1) === phase ? current : [...current, phase],
       );
-      if (phase === "failing") playEffect("bridge-break");
+      if (phase === "snapping") playEffect("bridge-break");
       if (phase === "falling") playEffect("suspension");
       if (phase === "splash") playEffect("splash");
     };
@@ -131,19 +136,22 @@ export function BridgeSimulation({
           ? Number.POSITIVE_INFINITY
           : (snapshot.stepCount - simulation.metrics.waterImpactStep) / 60;
       const actionPhase = [
-        "failing",
+        "sagging",
+        "snapping",
+        "peeling",
         "falling",
+        "collision",
         "splash",
         "aftermath",
       ].includes(snapshot.phase);
-      const baseScale = Math.min(width / 14.2, height / 7.2);
+      const baseScale = Math.min(width / 14.2, height / 8.8);
       const scale = baseScale;
       const cameraX = 4.5;
       const cameraY = -0.1;
       let shake = 0;
       if (!reducedMotion) {
-        if (brokenAge >= 0 && brokenAge < 0.48)
-          shake += (1 - brokenAge / 0.48) * 7;
+        if (brokenAge >= 0 && brokenAge < 0.58)
+          shake += (1 - brokenAge / 0.58) * 7;
         if (impactAge >= 0 && impactAge < 0.62)
           shake += (1 - impactAge / 0.62) * 12;
       }
@@ -151,7 +159,7 @@ export function BridgeSimulation({
       const shakeY = Math.cos(snapshot.stepCount * 1.29) * shake * 0.55;
       const project = (x: number, y: number): ScreenPoint => ({
         x: width / 2 + (x - cameraX) * scale,
-        y: height * 0.475 - (y - cameraY) * scale,
+        y: height * 0.39 - (y - cameraY) * scale,
       });
       const bodyPoint = (body: Body, x: number, y: number): ScreenPoint => {
         const position = body.getPosition();
@@ -194,10 +202,10 @@ export function BridgeSimulation({
         ? -Math.max(-0.2, Math.min(0.9, (chassisPosition.x - 4.2) * 0.16)) *
           scale
         : 0;
-      const followY =
-        snapshot.phase === "falling" || snapshot.phase === "splash"
-          ? -0.24 * scale
-          : 0;
+      const fallDepth = Math.max(0, -0.6 - chassisPosition.y);
+      const followY = actionPhase
+        ? -Math.min(1.4, fallDepth * 0.46) * scale
+        : 0;
       scene.position.set(followX + shakeX, followY + shakeY);
       waterScene.position.set(followX * 0.5 + shakeX, followY * 0.45 + shakeY);
       terrainScene.position.set(
@@ -263,45 +271,63 @@ export function BridgeSimulation({
           0,
           0.48,
         );
-        polygon(
-          [
-            project(-0.2, BRIDGE_WATER_SURFACE_Y + 0.08),
-            project(BRIDGE_GAP_METERS + 0.2, BRIDGE_WATER_SURFACE_Y + 0.08),
-            project(BRIDGE_GAP_METERS + 0.2, -4.2),
-            project(-0.2, -4.2),
-          ],
-          0x2389a8,
-          0x176984,
-          2,
-        );
       }
 
       drawingTarget = waterScene;
 
-      // Animated river with a shaped surface and moving highlight bands.
-      const riverSurface: ScreenPoint[] = [];
-      for (let x = -0.15; x <= BRIDGE_GAP_METERS + 0.15; x += 0.55) {
-        riverSurface.push(
-          project(
-            x,
-            BRIDGE_WATER_SURFACE_Y +
-              Math.sin(x * 2.4 + snapshot.stepCount * 0.055) * 0.055,
-          ),
-        );
-      }
+      // The filled river follows a spring-coupled 41-point physical heightfield.
+      const riverSurface = simulation.waterSurface.displacements.map(
+        (_, index) => {
+          const x = index * simulation.waterSurface.spacing;
+          return project(x, simulation.waterSurface.getHeightAt(x));
+        },
+      );
       const firstRiverPoint = riverSurface[0]!;
       drawingTarget.moveTo(firstRiverPoint.x, firstRiverPoint.y);
       for (const point of riverSurface.slice(1)) {
         drawingTarget.lineTo(point.x, point.y);
       }
-      drawingTarget.stroke({ color: 0x9be9ef, width: 5, alpha: 0.82 });
+      drawingTarget
+        .lineTo(project(BRIDGE_GAP_METERS, -5.4).x, project(0, -5.4).y)
+        .lineTo(project(0, -5.4).x, project(0, -5.4).y)
+        .closePath()
+        .fill({ color: 0x2389a8 })
+        .stroke({ color: 0x9be9ef, width: 5, alpha: 0.9 });
+      const foamStride = quality.lowDetail ? 5 : 3;
+      for (
+        let index = foamStride;
+        index < riverSurface.length - foamStride;
+        index += foamStride
+      ) {
+        const point = riverSurface[index]!;
+        const displacement = Math.abs(
+          simulation.waterSurface.displacements[index] ?? 0,
+        );
+        drawingTarget
+          .circle(point.x, point.y + 1, 2.5 + displacement * 12)
+          .fill({
+            color: 0xdffbff,
+            alpha: 0.45 + Math.min(0.42, displacement * 2),
+          });
+      }
       for (let band = 0; band < 2; band += 1) {
-        const y = BRIDGE_WATER_SURFACE_Y - 0.22 - band * 0.3;
+        const y = simulation.waterSurface.baselineY - 0.28 - band * 0.34;
         for (let x = 0.25 + (band % 2) * 0.3; x < 8.7; x += 1.9) {
           const wave = Math.sin(snapshot.stepCount * 0.045 + x + band) * 0.12;
           line(
-            project(x + wave, y),
-            project(x + 0.7 + wave, y + 0.025),
+            project(
+              x + wave,
+              y +
+                simulation.waterSurface.getHeightAt(x) -
+                simulation.waterSurface.baselineY,
+            ),
+            project(
+              x + 0.7 + wave,
+              y +
+                0.025 +
+                simulation.waterSurface.getHeightAt(x + 0.7) -
+                simulation.waterSurface.baselineY,
+            ),
             0x8ee4e8,
             3,
             0.7,
@@ -310,6 +336,7 @@ export function BridgeSimulation({
       }
 
       const towerTop = project(-0.08, 1.62);
+      const bankBottom = simulation.waterSurface.baselineY - 0.08;
       if (!staticLayersReady) {
         drawingTarget = terrainScene;
 
@@ -320,8 +347,8 @@ export function BridgeSimulation({
             project(0, 1.02),
             project(0.04, -0.1),
             project(-0.28, -0.48),
-            project(-0.2, -2.25),
-            project(-4, -2.25),
+            project(-0.2, bankBottom),
+            project(-4, bankBottom),
           ],
           0xb9683f,
           0x4d3543,
@@ -331,8 +358,8 @@ export function BridgeSimulation({
           [
             project(9, 1.03),
             project(13.5, 1.15),
-            project(13.5, -2.25),
-            project(9.18, -2.25),
+            project(13.5, bankBottom),
+            project(9.18, bankBottom),
             project(9.26, -0.5),
             project(8.96, -0.08),
           ],
@@ -387,14 +414,34 @@ export function BridgeSimulation({
       simulation.bridgeSegments.forEach((segment, index) => {
         if (index >= deployedSegments) return;
         const supportBroken =
-          simulation.metrics.bridgeBreakStep !== null &&
-          index >= simulation.bridgeSegments.length - 2;
+          (simulation.metrics.cableSnapStep !== null &&
+            index === simulation.bridgeSegments.length - 1) ||
+          (simulation.metrics.deckPeelStep !== null &&
+            index >= simulation.bridgeSegments.length - 2) ||
+          (simulation.metrics.deckReleaseStep !== null &&
+            index >= simulation.bridgeSegments.length - 3);
         if (index > 0 && !supportBroken) {
           line(towerTop, bodyPoint(segment, 0, 0.02), 0x6c5748, 2.5, 0.86);
         }
       });
+      if (
+        simulation.metrics.cableSnapStep !== null &&
+        brokenAge >= 0 &&
+        brokenAge < 0.85
+      ) {
+        const recoil = Math.sin(Math.min(1, brokenAge / 0.55) * Math.PI);
+        const end = bodyPoint(simulation.bridgeSegments.at(-1)!, 0, 0.02);
+        const midpoint = {
+          x: (towerTop.x + end.x) / 2 - recoil * 20,
+          y: (towerTop.y + end.y) / 2 - recoil * 26,
+        };
+        drawingTarget
+          .moveTo(towerTop.x, towerTop.y)
+          .quadraticCurveTo(midpoint.x, midpoint.y, end.x - 12, end.y - 10)
+          .stroke({ color: 0x6c5748, width: 3 });
+      }
 
-      // A ghost span and red shortfall marker keep 4.08 m versus 9 m legible.
+      // An unlabeled ghost span keeps the visual shortfall legible without giving away the answer.
       for (let marker = 0; marker < 12; marker += 1) {
         const startX = (marker / 12) * BRIDGE_GAP_METERS;
         line(
@@ -460,6 +507,38 @@ export function BridgeSimulation({
             .stroke({ color: 0x4b3541, width: 1.5 });
         }
       });
+
+      // A suspended maintenance sign is a lightweight physical obstacle.
+      if (simulation.signPieces.length > 0) {
+        const signAnchor = project(4.7, 0.45);
+        if (!simulation.metrics.intermediateObjectBroken) {
+          line(
+            signAnchor,
+            bodyPoint(simulation.signPieces[0]!, -0.2, 0),
+            0x574552,
+            2.5,
+          );
+        }
+        simulation.signPieces.forEach((piece, index) => {
+          polygon(
+            [
+              bodyPoint(piece, -0.33, 0.22),
+              bodyPoint(piece, 0.33, 0.22),
+              bodyPoint(piece, 0.33, -0.22),
+              bodyPoint(piece, -0.33, -0.22),
+            ],
+            index === 0 ? 0xf6c453 : 0xff8a47,
+            0x263a5a,
+            3,
+          );
+          line(
+            bodyPoint(piece, -0.2, 0.12),
+            bodyPoint(piece, 0.2, -0.12),
+            0xffffff,
+            4,
+          );
+        });
+      }
 
       // Suspension links, chassis, cab, driver, and independently rotating wheels.
       const rearMount = bodyPoint(simulation.chassis, -0.39, -0.05);
@@ -544,6 +623,19 @@ export function BridgeSimulation({
           );
         }
       }
+      if (simulation.bumper !== null) {
+        polygon(
+          [
+            bodyPoint(simulation.bumper, -0.15, 0.07),
+            bodyPoint(simulation.bumper, 0.15, 0.07),
+            bodyPoint(simulation.bumper, 0.15, -0.07),
+            bodyPoint(simulation.bumper, -0.15, -0.07),
+          ],
+          0xf0b94d,
+          0x263a5a,
+          2,
+        );
+      }
 
       // Dust at structural failure. Count drops for reduced motion/mobile.
       if (brokenAge >= 0 && brokenAge < 1.45) {
@@ -567,7 +659,8 @@ export function BridgeSimulation({
       // Large splash, ballistic spray, and spreading ripples at the physical impact point.
       const impactX = simulation.metrics.waterImpactX ?? chassisPosition.x;
       if (impactAge >= 0) {
-        const impact = project(impactX, BRIDGE_WATER_SURFACE_Y);
+        const impactWaterY = simulation.waterSurface.getHeightAt(impactX);
+        const impact = project(impactX, impactWaterY);
         if (impactAge < 2.15) {
           const fan = Math.sin(
             Math.min(1, Math.max(0, impactAge / 1.35)) * Math.PI,
@@ -575,12 +668,9 @@ export function BridgeSimulation({
           if (fan > 0.02) {
             polygon(
               [
-                project(impactX - 0.34, BRIDGE_WATER_SURFACE_Y),
-                project(
-                  impactX - 0.76 - fan * 0.5,
-                  BRIDGE_WATER_SURFACE_Y + fan * 1.65,
-                ),
-                project(impactX - 0.02, BRIDGE_WATER_SURFACE_Y + 0.14),
+                project(impactX - 0.34, impactWaterY),
+                project(impactX - 0.76 - fan * 0.5, impactWaterY + fan * 1.65),
+                project(impactX - 0.02, impactWaterY + 0.14),
               ],
               0xcff9ff,
               0x8ee4ee,
@@ -589,12 +679,9 @@ export function BridgeSimulation({
             );
             polygon(
               [
-                project(impactX + 0.3, BRIDGE_WATER_SURFACE_Y),
-                project(
-                  impactX + 0.82 + fan * 0.55,
-                  BRIDGE_WATER_SURFACE_Y + fan * 1.85,
-                ),
-                project(impactX + 0.02, BRIDGE_WATER_SURFACE_Y + 0.12),
+                project(impactX + 0.3, impactWaterY),
+                project(impactX + 0.82 + fan * 0.55, impactWaterY + fan * 1.85),
+                project(impactX + 0.02, impactWaterY + 0.12),
               ],
               0xe4fcff,
               0x8ee4ee,
@@ -602,16 +689,14 @@ export function BridgeSimulation({
               0.82,
             );
           }
-          const dropletCount = quality.lowDetail ? 12 : 30;
+          const dropletCount = quality.lowDetail ? 8 : 18;
           for (let index = 0; index < dropletCount; index += 1) {
             const side = index % 2 === 0 ? -1 : 1;
             const horizontal = (0.55 + (index % 11) * 0.075) * side;
             const vertical = 4.4 + (index % 9) * 0.4;
             const x = impactX + horizontal * impactAge;
             const y =
-              BRIDGE_WATER_SURFACE_Y +
-              vertical * impactAge -
-              3.4 * impactAge * impactAge;
+              impactWaterY + vertical * impactAge - 3.4 * impactAge * impactAge;
             const point = project(x, y);
             const life = Math.max(0, 1 - impactAge / 2.15);
             scene.circle(point.x, point.y, 2.5 + (index % 4)).fill({
@@ -650,7 +735,13 @@ export function BridgeSimulation({
 
       // Comic safety beat: the hard-hat driver resurfaces inside a rescue bubble.
       if (snapshot.phase === "splash" || snapshot.phase === "aftermath") {
-        const rescue = project(impactX + 0.22, BRIDGE_WATER_SURFACE_Y + 0.33);
+        const rescueX = impactX + 0.22;
+        const rescue = project(
+          rescueX,
+          simulation.waterSurface.getHeightAt(rescueX) +
+            0.33 +
+            Math.sin(snapshot.stepCount * 0.085) * 0.035,
+        );
         scene
           .circle(rescue.x, rescue.y, 0.31 * scale)
           .fill({ color: 0xdfffff, alpha: 0.32 })
@@ -673,6 +764,20 @@ export function BridgeSimulation({
           )
           .stroke({ color: 0xff7b3d, width: 8 })
           .stroke({ color: 0xffffff, width: 3, alpha: 0.8 });
+        if (impactAge > 1.1) {
+          line(
+            { x: rescue.x + 0.2 * scale, y: rescue.y - 0.08 * scale },
+            { x: rescue.x + 0.38 * scale, y: rescue.y - 0.22 * scale },
+            0xf6c453,
+            4,
+          );
+          line(
+            { x: rescue.x + 0.32 * scale, y: rescue.y - 0.27 * scale },
+            { x: rescue.x + 0.42 * scale, y: rescue.y - 0.38 * scale },
+            0xffffff,
+            3,
+          );
+        }
       }
 
       // Right-bank spotter and safety sign add scale and a comic witness.
@@ -710,7 +815,7 @@ export function BridgeSimulation({
       try {
         if (shouldForceRendererFailure(window))
           throw new Error("Injected renderer failure");
-        const stageHeight = host.clientWidth < 700 ? 420 : 520;
+        const stageHeight = host.clientWidth < 700 ? 500 : 620;
         await app.init({
           antialias: quality.antialias,
           autoStart: false,
@@ -730,7 +835,7 @@ export function BridgeSimulation({
         app.canvas.setAttribute("aria-hidden", "true");
         app.canvas.className = "simulation-canvas simulation-canvas--bridge";
         resizeObserver = new ResizeObserver(() => {
-          const nextHeight = host.clientWidth < 700 ? 420 : 520;
+          const nextHeight = host.clientWidth < 700 ? 500 : 620;
           app.renderer.resize(Math.max(320, host.clientWidth), nextHeight);
           farScene.cacheAsTexture(false);
           terrainScene.cacheAsTexture(false);
@@ -788,17 +893,21 @@ export function BridgeSimulation({
     ? "crossed"
     : "recovered";
   const outcomeTitle =
-    expectedStatus === "crossed" ? "Safe crossing" : "Bridge too short";
+    expectedStatus === "crossed"
+      ? "Safe crossing"
+      : status === "running"
+        ? "Bridge test in progress"
+        : "Bridge test complete";
   const transcript =
     expectedStatus === "crossed"
       ? `The ${run.inputs.deployedLengthMeters} meter bridge spans the 9 meter ravine. The rescue vehicle crosses safely.`
-      : `The ${run.inputs.deployedLengthMeters} meter articulated bridge ends before the 9 meter ravine is crossed. Its unsupported panels break under the vehicle, which tumbles into the river and resurfaces in a rescue bubble.`;
+      : `The bridge was built from your answer: ${run.inputs.deployedLengthMeters} m. It bent, broke apart, and sent the vehicle through the construction sign into the river. The driver resurfaced safely.`;
 
   return (
     <article className="simulation-card" aria-labelledby={`run-${run.id}`}>
       <div className="simulation-card__heading">
         <div>
-          <p className="feed-card__label">Deterministic bridge run</p>
+          <p className="feed-card__label">Your bridge test</p>
           <h2 id={`run-${run.id}`}>{outcomeTitle}</h2>
         </div>
         <strong className={`result-pill result-pill--${expectedStatus}`}>
@@ -813,8 +922,12 @@ export function BridgeSimulation({
         <div className="simulation-stage__canvas-host" ref={canvasHostRef} />
         {!rendererError && (
           <div className="bridge-meter" aria-hidden="true">
-            <strong>{run.inputs.deployedLengthMeters} m built</strong>
-            <span>{BRIDGE_GAP_METERS} m needed</span>
+            <strong>
+              Built from your answer: {run.inputs.deployedLengthMeters} m
+            </strong>
+            {run.outcome.isMathematicallyCorrect && (
+              <span>{BRIDGE_GAP_METERS} m needed</span>
+            )}
           </div>
         )}
         {!rendererError && (
@@ -824,15 +937,14 @@ export function BridgeSimulation({
         )}
         {rendererError && (
           <p className="renderer-fallback">
-            The visual renderer is unavailable. The verified result remains
-            below.
+            The visual renderer is unavailable. Your result remains below.
           </p>
         )}
       </div>
       {quality.lowDetail && !rendererError && (
         <p className="renderer-fallback renderer-fallback--notice">
           Reduced decorative effects are active. The articulated bridge, vehicle
-          tumble, water impact, and verified result remain complete.
+          tumble, moving water, and rescue result remain complete.
         </p>
       )}
       <div className="simulation-controls" aria-label="Simulation controls">
@@ -884,21 +996,33 @@ export function BridgeSimulation({
           {muted ? "Sound muted" : "Sound on"}
         </button>
       </div>
-      <div className="simulation-transcript" aria-live="polite">
-        <strong>
-          {status === "running" ? "Simulation running…" : "Result confirmed"}
-        </strong>
-        <p>{transcript}</p>
-        <p>
-          Domain check: expected{" "}
-          {run.outcome.correctInputs.deployedLengthMeters} m; submitted{" "}
-          {run.inputs.deployedLengthMeters} m. Physics visualizes this
-          classification—it does not grade the answer.
-        </p>
-        <p>
-          Immutable attempt cutoff: student canvas operation {sourceCanvasSeq}.
-        </p>
-      </div>
+      {status !== "running" && (
+        <div className="simulation-transcript" aria-live="polite">
+          <strong>Result ready</strong>
+          <p>{transcript}</p>
+          {run.outcome.isMathematicallyCorrect && (
+            <p>
+              Each quarter is 3 meters. Three quarters is 9 meters.
+              Equivalently, 3/4 is 0.75.
+            </p>
+          )}
+        </div>
+      )}
+      {studentPerspective &&
+        !run.outcome.isMathematicallyCorrect &&
+        status !== "running" && (
+          <LearnerBridgeFeedback onTryAgain={onTryAgain} />
+        )}
+      {!studentPerspective &&
+        !run.outcome.isMathematicallyCorrect &&
+        status !== "running" && (
+          <section className="teacher-diagnosis">
+            <strong>
+              Likely misconception: the learner treated the numerator and
+              denominator as decimal digits.
+            </strong>
+          </section>
+        )}
     </article>
   );
 }

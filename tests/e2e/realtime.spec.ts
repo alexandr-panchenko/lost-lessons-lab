@@ -42,24 +42,16 @@ test("student and teacher layers synchronize across clean contexts", async ({
     studentPage,
     0,
   );
-  await expect(
-    studentPage.getByText("1 shared operations saved"),
-  ).toBeVisible();
-  await expect(
-    teacherPage.getByText("1 shared operations saved"),
-  ).toBeVisible();
+  await expect(studentPage.locator('[data-saved-strokes="1"]')).toBeVisible();
+  await expect(teacherPage.locator('[data-saved-strokes="1"]')).toBeVisible();
 
   await draw(
     teacherPage.getByLabel("Teacher annotation drawing canvas"),
     teacherPage,
     0.08,
   );
-  await expect(
-    teacherPage.getByText("2 shared operations saved"),
-  ).toBeVisible();
-  await expect(
-    studentPage.getByText("2 shared operations saved"),
-  ).toBeVisible();
+  await expect(teacherPage.locator('[data-saved-strokes="2"]')).toBeVisible();
+  await expect(studentPage.locator('[data-saved-strokes="2"]')).toBeVisible();
   await expect(
     studentPage.getByRole("heading", {
       name: "What does your learner struggle with?",
@@ -67,9 +59,7 @@ test("student and teacher layers synchronize across clean contexts", async ({
   ).toHaveCount(0);
 
   await studentPage.reload();
-  await expect(
-    studentPage.getByText("2 shared operations saved"),
-  ).toBeVisible();
+  await expect(studentPage.locator('[data-saved-strokes="2"]')).toBeVisible();
   await studentContext.close();
 });
 
@@ -128,16 +118,10 @@ test("an offline stroke reconciles once without duplication", async ({
     "Live room connected",
     { timeout: 15_000 },
   );
-  await expect(
-    studentPage.getByText("1 shared operations saved"),
-  ).toBeVisible();
-  await expect(
-    teacherPage.getByText("1 shared operations saved"),
-  ).toBeVisible();
+  await expect(studentPage.locator('[data-saved-strokes="1"]')).toBeVisible();
+  await expect(teacherPage.locator('[data-saved-strokes="1"]')).toBeVisible();
 
   await studentPage.reload();
-  await expect(
-    studentPage.getByText("1 shared operations saved"),
-  ).toBeVisible();
+  await expect(studentPage.locator('[data-saved-strokes="1"]')).toBeVisible();
   await studentContext.close();
 });

@@ -11,14 +11,9 @@ export function PreparedCorrectionPanel({
       aria-labelledby="prepared-correction-title"
     >
       <div>
-        <p className="feed-card__label">Prepared correction · still editable</p>
-        <h2 id="prepared-correction-title">
-          Try the fraction conversion again
-        </h2>
-        <p>
-          Replace the sample with <strong>3/4 = 0.75</strong> and
-          <strong> 12 × 0.75 = 9 m</strong>, then submit the new canvas state.
-        </p>
+        <p className="feed-card__label">Your next try</p>
+        <h2 id="prepared-correction-title">Try your fraction strategy again</h2>
+        <p>Return to your work and revise the step you want to change.</p>
       </div>
       <button
         className="primary-button"
@@ -26,7 +21,7 @@ export function PreparedCorrectionPanel({
         onClick={onApply}
         type="button"
       >
-        Apply prepared correction
+        Try again
       </button>
     </section>
   );

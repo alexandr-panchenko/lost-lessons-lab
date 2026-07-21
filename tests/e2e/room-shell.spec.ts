@@ -41,7 +41,7 @@ test("judge switches the same tab to the real student capability and back", asyn
   const roomPath = new URL(teacherUrl).pathname;
   const studentLink = await page.getByLabel("Student link").inputValue();
   const operationsBefore = await page
-    .getByText(/shared operations saved/u)
+    .getByText("Teacher notes are saved")
     .innerText();
   const pageCount = context.pages().length;
 

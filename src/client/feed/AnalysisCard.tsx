@@ -14,7 +14,7 @@ const STATUS_LABELS: Record<AnalysisStatus, string> = {
   preparing: "Preparing the verified simulation inputs…",
   reading: "Reading the handwriting…",
   uploading: "Saving the student-only image…",
-  validating: "Checking values with deterministic math…",
+  validating: "Checking the measurement…",
 };
 
 function AttemptImage({
@@ -69,11 +69,13 @@ export function AnalysisCard({
   attempt,
   onLaunch,
   room,
+  studentPerspective,
 }: {
   analysis: AnalysisRecord | undefined;
   attempt: AiAttempt;
   onLaunch: (attemptId: string) => void;
   room: RoomLocation;
+  studentPerspective: boolean;
 }) {
   const [countdown, setCountdown] = useState(2);
   const [cancelled, setCancelled] = useState(false);
@@ -100,6 +102,13 @@ export function AnalysisCard({
   ]);
 
   const result = analysis?.result;
+  const bridgeInputs =
+    result !== null &&
+    result !== undefined &&
+    "deployedLengthMeters" in result.scenarioInputs
+      ? result.scenarioInputs
+      : null;
+  const isBridgeResult = bridgeInputs !== null;
   return (
     <article
       className="analysis-card"
@@ -107,14 +116,16 @@ export function AnalysisCard({
     >
       <div className="analysis-card__heading">
         <div>
-          <p className="feed-card__label">
-            AI interpretation · review before launch
-          </p>
+          <p className="feed-card__label">Handwriting review</p>
           <h2 id={`analysis-${attempt.id}`}>{STATUS_LABELS[attempt.status]}</h2>
         </div>
-        <span className={`analysis-status analysis-status--${attempt.status}`}>
-          {attempt.status}
-        </span>
+        {!studentPerspective && (
+          <span
+            className={`analysis-status analysis-status--${attempt.status}`}
+          >
+            {attempt.status}
+          </span>
+        )}
       </div>
       {attempt.media !== null && (
         <div className="attempt-media">
@@ -128,151 +139,171 @@ export function AnalysisCard({
       )}
       {analysis?.failureCategory != null && (
         <div className="analysis-fallback" role="status">
-          <strong>
-            Use the manual{" "}
-            {attempt.taskId === "water-task-v1"
-              ? "water"
-              : attempt.taskId === "speed-task-v1"
-                ? "motion"
-                : attempt.taskId === "structure-task-v1"
-                  ? "load"
-                  : "bridge"}{" "}
-            controls below.
-          </strong>
+          <strong>I couldn&apos;t read the handwriting this time.</strong>
           <p>
-            The handwriting could not be interpreted safely (
-            {analysis.failureCategory.replaceAll("_", " ")}). Your drawing is
-            still saved, and no result was guessed.
+            Your drawing is saved. Enter the measurement from your work below.
           </p>
         </div>
       )}
       {result !== null && result !== undefined && (
         <div className="analysis-result">
-          <p className="analysis-model">
-            Read by {analysis?.modelId ?? "the configured model"}
-            {analysis?.usedRepair
-              ? " · one bounded repair/retry used"
-              : " · first structured response accepted"}
-          </p>
-          <section>
-            <h3>What the AI read</h3>
-            <p className="analysis-transcription">{result.transcription}</p>
-            <ol>
-              {result.steps.map((step, index) => (
-                <li
-                  className={`analysis-step analysis-step--${step.status}`}
-                  key={`${index}-${step.text}`}
-                >
-                  {step.text}
-                </li>
-              ))}
-            </ol>
-          </section>
-          {"deployedLengthMeters" in result.scenarioInputs ? (
-            <section
-              className="analysis-values"
-              aria-label="Extracted simulation values"
-            >
-              <div>
-                <span>Fraction as decimal</span>
-                <strong>
-                  {result.scenarioInputs.fractionAsDecimal ?? "unclear"}
-                </strong>
-              </div>
-              <div>
-                <span>Bridge length</span>
-                <strong>
-                  {result.scenarioInputs.deployedLengthMeters ?? "unclear"} m
-                </strong>
-              </div>
-            </section>
-          ) : "distanceMeters" in result.scenarioInputs ? (
-            <section
-              className="analysis-values"
-              aria-label="Extracted simulation values"
-            >
-              <div>
-                <span>Speed</span>
-                <strong>
-                  {result.scenarioInputs.speedMetersPerSecond ?? "unclear"} m/s
-                </strong>
-              </div>
-              <div>
-                <span>Time</span>
-                <strong>
-                  {result.scenarioInputs.timeSeconds ?? "unclear"} s
-                </strong>
-              </div>
-              <div>
-                <span>Travel distance</span>
-                <strong>
-                  {result.scenarioInputs.distanceMeters ?? "unclear"} m
-                </strong>
-              </div>
-            </section>
-          ) : "totalLoadKg" in result.scenarioInputs ? (
-            <section
-              className="analysis-values"
-              aria-label="Extracted simulation values"
-            >
-              <div>
-                <span>Item count</span>
-                <strong>{result.scenarioInputs.itemCount ?? "unclear"}</strong>
-              </div>
-              <div>
-                <span>Load per item</span>
-                <strong>
-                  {result.scenarioInputs.unitLoadKg ?? "unclear"} kg
-                </strong>
-              </div>
-              <div>
-                <span>Total load</span>
-                <strong>
-                  {result.scenarioInputs.totalLoadKg ?? "unclear"} kg
-                </strong>
-              </div>
-            </section>
+          {studentPerspective && isBridgeResult ? (
+            <>
+              <section>
+                <h3>What I read from your work</h3>
+                <p className="analysis-transcription">{result.transcription}</p>
+              </section>
+              <section
+                className="analysis-values"
+                aria-label="Your measurements"
+              >
+                <div>
+                  <span>Fraction as decimal</span>
+                  <strong>
+                    {bridgeInputs?.fractionAsDecimal ?? "not written"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Bridge length</span>
+                  <strong>
+                    {bridgeInputs?.deployedLengthMeters ?? "not written"} m
+                  </strong>
+                </div>
+              </section>
+            </>
           ) : (
-            <section
-              className="analysis-values"
-              aria-label="Extracted simulation values"
-            >
-              <div>
-                <span>Flow rate</span>
-                <strong>
-                  {result.scenarioInputs.flowRateLitersPerMinute ?? "unclear"}{" "}
-                  L/min
-                </strong>
-              </div>
-              <div>
-                <span>Time</span>
-                <strong>
-                  {result.scenarioInputs.timeMinutes ?? "unclear"} min
-                </strong>
-              </div>
-              <div>
-                <span>Water volume</span>
-                <strong>
-                  {result.scenarioInputs.volumeLiters ?? "unclear"} L
-                </strong>
-              </div>
-            </section>
-          )}
-          {result.firstError !== null && (
-            <section className="analysis-error-note">
-              <h3>Likely first error</h3>
-              <p>{result.firstError.summary}</p>
-            </section>
-          )}
-          <p className="analysis-explanation">
-            {result.studentFacingExplanation}
-          </p>
-          {analysis?.disagreement && (
-            <p className="analysis-disagreement" role="status">
-              The simulation used the extracted values above. The AI explanation
-              is uncertain because deterministic math disagreed with its
-              verdict.
-            </p>
+            <>
+              <section>
+                <h3>What the AI read</h3>
+                <p className="analysis-transcription">{result.transcription}</p>
+                <ol>
+                  {result.steps.map((step, index) => (
+                    <li
+                      className={`analysis-step analysis-step--${step.status}`}
+                      key={`${index}-${step.text}`}
+                    >
+                      {step.text}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+              {"deployedLengthMeters" in result.scenarioInputs ? (
+                <section
+                  className="analysis-values"
+                  aria-label="Extracted simulation values"
+                >
+                  <div>
+                    <span>Fraction as decimal</span>
+                    <strong>
+                      {result.scenarioInputs.fractionAsDecimal ?? "unclear"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Bridge length</span>
+                    <strong>
+                      {result.scenarioInputs.deployedLengthMeters ?? "unclear"}{" "}
+                      m
+                    </strong>
+                  </div>
+                </section>
+              ) : "distanceMeters" in result.scenarioInputs ? (
+                <section
+                  className="analysis-values"
+                  aria-label="Extracted simulation values"
+                >
+                  <div>
+                    <span>Speed</span>
+                    <strong>
+                      {result.scenarioInputs.speedMetersPerSecond ?? "unclear"}{" "}
+                      m/s
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Time</span>
+                    <strong>
+                      {result.scenarioInputs.timeSeconds ?? "unclear"} s
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Travel distance</span>
+                    <strong>
+                      {result.scenarioInputs.distanceMeters ?? "unclear"} m
+                    </strong>
+                  </div>
+                </section>
+              ) : "totalLoadKg" in result.scenarioInputs ? (
+                <section
+                  className="analysis-values"
+                  aria-label="Extracted simulation values"
+                >
+                  <div>
+                    <span>Item count</span>
+                    <strong>
+                      {result.scenarioInputs.itemCount ?? "unclear"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Load per item</span>
+                    <strong>
+                      {result.scenarioInputs.unitLoadKg ?? "unclear"} kg
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Total load</span>
+                    <strong>
+                      {result.scenarioInputs.totalLoadKg ?? "unclear"} kg
+                    </strong>
+                  </div>
+                </section>
+              ) : (
+                <section
+                  className="analysis-values"
+                  aria-label="Extracted simulation values"
+                >
+                  <div>
+                    <span>Flow rate</span>
+                    <strong>
+                      {result.scenarioInputs.flowRateLitersPerMinute ??
+                        "unclear"}{" "}
+                      L/min
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Time</span>
+                    <strong>
+                      {result.scenarioInputs.timeMinutes ?? "unclear"} min
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Water volume</span>
+                    <strong>
+                      {result.scenarioInputs.volumeLiters ?? "unclear"} L
+                    </strong>
+                  </div>
+                </section>
+              )}
+              {!studentPerspective &&
+              isBridgeResult &&
+              result.verdict !== "correct" ? (
+                <section className="analysis-error-note">
+                  <h3>Likely misconception</h3>
+                  <p>
+                    The learner treated the numerator and denominator as decimal
+                    digits.
+                  </p>
+                </section>
+              ) : result.firstError !== null ? (
+                <section className="analysis-error-note">
+                  <h3>Likely first error</h3>
+                  <p>{result.firstError.summary}</p>
+                </section>
+              ) : null}
+              {(!isBridgeResult || result.verdict === "correct") && (
+                <p className="analysis-explanation">
+                  {result.studentFacingExplanation}
+                </p>
+              )}
+            </>
           )}
           <div className="launch-countdown" role="status" aria-live="polite">
             {cancelled ? (
@@ -297,8 +328,8 @@ export function AnalysisCard({
               <>
                 <span>
                   {countdown > 0
-                    ? `Launching verified values in ${countdown}…`
-                    : "Launching verified values…"}
+                    ? `Starting the bridge test in ${countdown}…`
+                    : "Starting the bridge test…"}
                 </span>
                 <button
                   className="secondary-button"

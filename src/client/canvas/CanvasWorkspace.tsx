@@ -295,12 +295,13 @@ export function CanvasWorkspace({
         <p id="canvas-instructions">
           Draw with a mouse, finger, or stylus. Non-drawing actions are
           available as buttons above the canvas.
-          {preparedSample &&
-            " This prepared sample is ordinary editable student ink."}
+          {preparedSample && " This prepared sample is yours to edit."}
         </p>
-        <span aria-live="polite">
+        <span aria-live="polite" data-saved-strokes={records.length}>
           {connected
-            ? `${records.length} shared operations saved`
+            ? activeLayer === "student"
+              ? "Your work is saved"
+              : "Teacher notes are saved"
             : "Offline — new strokes will send after reconnect"}
         </span>
       </div>

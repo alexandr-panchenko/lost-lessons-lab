@@ -37,7 +37,7 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
 
   await page.goto("/");
   await drawStroke(page, "Teacher annotation", 0.25);
-  await expect(page.getByText("1 shared operations saved")).toBeVisible();
+  await expect(page.locator('[data-saved-strokes="1"]')).toBeVisible();
   await page
     .getByRole("button", { name: "Try the lesson as a student" })
     .click();
@@ -51,11 +51,11 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
   expect(attemptBodies).toHaveLength(0);
 
   await drawStroke(page, "Student math solution", 0.55);
-  await expect(page.getByText("2 shared operations saved")).toBeVisible();
+  await expect(page.locator('[data-saved-strokes="2"]')).toBeVisible();
   await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(
     page.getByText(
-      "AI interpretation is disabled right now. Use the manual bridge controls below.",
+      "I couldn't read the handwriting this time. Your work is saved; enter your bridge measurement below.",
     ),
   ).toBeVisible();
   expect(attemptBodies).toHaveLength(1);
@@ -73,17 +73,17 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
     ),
   ).toBe(true);
   await expect(
-    page.getByRole("button", { name: "Run manual value" }),
+    page.getByRole("button", { name: "Test this bridge" }),
   ).toBeEnabled();
   await page.getByLabel("Bridge length").fill("4.08");
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(
-    page.getByRole("heading", { name: "Bridge too short" }),
+    page.getByRole("heading", { name: "Bridge test in progress" }),
   ).toBeVisible();
   await page.getByLabel("Bridge length").fill("9");
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(
     page.getByRole("heading", { name: "Safe crossing" }),
   ).toBeVisible();
-  await expect(page.getByText("2 shared operations saved")).toBeVisible();
+  await expect(page.locator('[data-saved-strokes="2"]')).toBeVisible();
 });

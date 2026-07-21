@@ -9,7 +9,7 @@ const reviewOrigin = new URL(
     process.env.PRODUCTION_URL ??
     "https://lost-lessons-lab.sanocks.workers.dev",
 );
-const outputDirectory = "docs/evidence/r2";
+const outputDirectory = "docs/evidence/r2-1";
 await mkdir(outputDirectory, { recursive: true });
 const videoDirectory = await mkdtemp(join(tmpdir(), "lost-lessons-r2-video-"));
 const browser = await chromium.launch({ headless: true });
@@ -58,7 +58,7 @@ try {
   await page.getByText("Live room connected", { exact: true }).waitFor();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByLabel("Fraction as a decimal (optional)").fill("0.34");
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
 
   const stage = page.locator(".simulation-stage--bridge");
   await stage.waitFor();
@@ -69,22 +69,32 @@ try {
   await page.getByRole("button", { name: "Resume" }).waitFor();
   await positionStage();
   await stage.screenshot({
-    path: `${outputDirectory}/wrong-bridge-before-run.png`,
+    path: `${outputDirectory}/wrong-bridge-before-failure.png`,
+  });
+  await clickPlaybackControl("Resume");
+
+  await page
+    .locator('[data-simulation-events*="snapping"]')
+    .waitFor({ timeout: 20_000 });
+  await clickPlaybackControl("Pause");
+  await page.getByRole("button", { name: "Resume" }).waitFor();
+  await positionStage();
+  await stage.screenshot({
+    path: `${outputDirectory}/wrong-bridge-failure.png`,
   });
   await clickPlaybackControl("Resume");
 
   await page
     .locator('[data-simulation-phase="splash"]')
     .waitFor({ timeout: 20_000 });
-  await page.waitForTimeout(100);
   await clickPlaybackControl("Pause");
   await page.getByRole("button", { name: "Resume" }).waitFor();
   await positionStage();
   await stage.screenshot({
-    path: `${outputDirectory}/wrong-bridge-catastrophe-climax.png`,
+    path: `${outputDirectory}/wrong-bridge-water-impact.png`,
   });
   await clickPlaybackControl("Resume");
-  await page.getByText("Result confirmed").waitFor({ timeout: 25_000 });
+  await page.getByText("Result ready").waitFor({ timeout: 25_000 });
   await page.waitForTimeout(900);
   if (consoleErrors.length > 0) {
     throw new Error("R2 evidence capture emitted a browser console error");
@@ -96,8 +106,9 @@ try {
   console.info(
     JSON.stringify({
       screenshots: [
-        `${outputDirectory}/wrong-bridge-before-run.png`,
-        `${outputDirectory}/wrong-bridge-catastrophe-climax.png`,
+        `${outputDirectory}/wrong-bridge-before-failure.png`,
+        `${outputDirectory}/wrong-bridge-failure.png`,
+        `${outputDirectory}/wrong-bridge-water-impact.png`,
       ],
       status: "rescue-r2-evidence-captured",
       video: `${outputDirectory}/wrong-bridge-complete-run.webm`,

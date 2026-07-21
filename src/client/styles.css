@@ -884,8 +884,8 @@ blockquote {
 .simulation-stage--bridge,
 .simulation-stage--bridge .simulation-stage__canvas-host,
 .simulation-canvas--bridge {
-  min-height: 32.5rem;
-  height: 32.5rem;
+  min-height: 38.75rem;
+  height: 38.75rem;
 }
 
 .simulation-stage__canvas-host {
@@ -980,6 +980,71 @@ blockquote {
   margin: 0.45rem 0 0;
 }
 
+.learner-feedback-card,
+.teacher-diagnosis {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.1rem, 3vw, 1.7rem);
+  border-top: 2px solid #174e70;
+  background: #fffaf0;
+}
+
+.learner-feedback-card__copy {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.learner-feedback-card__copy h2,
+.learner-feedback-card__copy p,
+.learner-hints p {
+  margin: 0;
+}
+
+.learner-feedback-card__focus {
+  padding: 0.75rem 0.9rem;
+  border-left: 0.35rem solid #e65d3f;
+  background: #fff1dc;
+  font-weight: 800;
+}
+
+.fraction-kit {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(2.5rem, 1fr));
+  width: min(100%, 28rem);
+  min-height: 4rem;
+  overflow: hidden;
+  border: 3px solid #263a5a;
+  border-radius: 0.6rem;
+  box-shadow: 0.22rem 0.22rem 0 rgb(38 58 90 / 18%);
+}
+
+.fraction-kit span {
+  background: #f6c453;
+}
+
+.fraction-kit span + span {
+  border-left: 3px solid #263a5a;
+}
+
+.learner-hints {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid #2d7656;
+  border-radius: 0.75rem;
+  background: #e9f7e8;
+}
+
+.learner-feedback-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.simulation-card .simulation-controls {
+  opacity: 0.82;
+}
+
 @media (max-width: 44rem) {
   .room-intro {
     grid-template-columns: 1fr;
@@ -1041,8 +1106,8 @@ blockquote {
   .simulation-stage--bridge,
   .simulation-stage--bridge .simulation-stage__canvas-host,
   .simulation-canvas--bridge {
-    min-height: 26.25rem;
-    height: 26.25rem;
+    min-height: 31.25rem;
+    height: 31.25rem;
   }
 
   .bridge-meter {

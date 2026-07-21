@@ -283,8 +283,39 @@ describe("analysis room lifecycle", () => {
       ).json(),
     );
     expect(reloaded.attempts).toContainEqual(completed.attempt);
-    expect(reloaded.analyses).toContainEqual(completed.analysis);
     expect(reloaded.achievements).toContainEqual(completed.achievement);
-    expect(reloaded.simulationRuns).toContainEqual(completed.run);
+    const studentAnalysis = reloaded.analyses.find(
+      (analysis) => analysis.attemptId === completed.attempt.id,
+    );
+    const studentRun = reloaded.simulationRuns.find(
+      (run) => run.attemptId === completed.attempt.id,
+    );
+    expect(studentAnalysis?.result).toMatchObject({
+      firstError: {
+        summary:
+          "The learner treated the numerator and denominator as decimal digits.",
+      },
+      studentFacingExplanation:
+        "A fraction means division. Its digits are not simply placed after a decimal point.",
+    });
+    expect(studentRun?.templateId).toBe("bridge");
+    if (studentRun?.templateId !== "bridge")
+      throw new Error("Missing student bridge run");
+    expect(studentRun.outcome.correctInputs).toBeUndefined();
+    expect(studentRun.outcome.explanationData).toBeUndefined();
+    expect(JSON.stringify({ studentAnalysis, studentRun })).not.toMatch(
+      /0\.75|9\s+m\b|9\s+meters?/iu,
+    );
+
+    const teacherReloaded = RoomBootstrapSchema.parse(
+      await (
+        await exports.default.fetch(
+          `https://example.test/api/rooms/${created.roomId}/bootstrap`,
+          { headers: { Authorization: `Bearer ${created.teacherToken}` } },
+        )
+      ).json(),
+    );
+    expect(teacherReloaded.analyses).toContainEqual(completed.analysis);
+    expect(teacherReloaded.simulationRuns).toContainEqual(completed.run);
   });
 });

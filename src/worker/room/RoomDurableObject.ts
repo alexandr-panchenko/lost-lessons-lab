@@ -44,6 +44,7 @@ import {
   StructureSimulationInputsSchema,
   classifyStructureInput,
 } from "../../shared/domain/structure";
+import { guardLearnerBridgeText } from "../../shared/learner-feedback";
 import {
   ManualAttemptSchema,
   RoomFeedEventSchema,
@@ -181,6 +182,77 @@ type SocketAttachment = {
   clientId: string;
   role: RoomRole;
 };
+
+function learnerBridgeRun(run: SimulationRun): SimulationRun {
+  if (run.templateId !== "bridge" || run.outcome.isMathematicallyCorrect) {
+    return run;
+  }
+  const outcome = {
+    errorMagnitude: run.outcome.errorMagnitude,
+    isMathematicallyCorrect: run.outcome.isMathematicallyCorrect,
+    resultClass: run.outcome.resultClass,
+    submittedInputs: run.outcome.submittedInputs,
+  };
+  return SimulationRunSchema.parse({ ...run, outcome });
+}
+
+function learnerBridgeAnalysis(
+  analysis: AnalysisRecord,
+  run: SimulationRun | undefined,
+): AnalysisRecord {
+  const result = analysis.result;
+  if (
+    run?.templateId !== "bridge" ||
+    run.outcome.isMathematicallyCorrect ||
+    result === null ||
+    !("deployedLengthMeters" in result.scenarioInputs)
+  ) {
+    return analysis;
+  }
+  const deployedLengthMeters = run.inputs.deployedLengthMeters;
+  const fractionAsDecimal = run.inputs.fractionAsDecimal ?? null;
+  return AnalysisRecordSchema.parse({
+    ...analysis,
+    result: {
+      ...result,
+      finalAnswers: [
+        {
+          name: "deployedLengthMeters",
+          unit: "m",
+          value: deployedLengthMeters,
+        },
+      ],
+      firstError: {
+        regionId: result.firstError?.regionId ?? null,
+        summary:
+          "The learner treated the numerator and denominator as decimal digits.",
+      },
+      scenarioInputs: { deployedLengthMeters, fractionAsDecimal },
+      steps: result.steps.map((step) => ({
+        ...step,
+        normalizedExpression:
+          step.normalizedExpression === null
+            ? null
+            : guardLearnerBridgeText(
+                step.normalizedExpression,
+                "Check this written step again.",
+              ),
+        text: guardLearnerBridgeText(
+          step.text,
+          "Check this written step again.",
+        ),
+      })),
+      studentFacingExplanation: guardLearnerBridgeText(
+        result.studentFacingExplanation,
+        "A fraction means division. Its digits are not simply placed after a decimal point.",
+      ),
+      transcription: guardLearnerBridgeText(
+        result.transcription,
+        `The learner wrote a bridge length of ${deployedLengthMeters} m.`,
+      ),
+    },
+  });
+}
 
 const BeginAiAttemptSchema = z
   .object({
@@ -1276,12 +1348,21 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     ];
     this.send(socket, {
       payload: {
-        analyses: this.analysesByAttemptId(attemptIds),
+        analyses:
+          attachment.role === "student"
+            ? this.analysesByAttemptId(attemptIds).map((analysis) =>
+                learnerBridgeAnalysis(
+                  analysis,
+                  runs.find((run) => run.attemptId === analysis.attemptId),
+                ),
+              )
+            : this.analysesByAttemptId(attemptIds),
         achievements: this.achievementsAfter(lastSeenSeq),
         attempts: this.attemptsById(attemptIds),
         canvasOperations: this.canvasOperationsAfter(lastSeenSeq),
         fromSeq: lastSeenSeq,
-        simulationRuns: runs,
+        simulationRuns:
+          attachment.role === "student" ? runs.map(learnerBridgeRun) : runs,
         toSeq: currentSeq,
       },
       type: "room.delta",
@@ -2042,7 +2123,36 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
 
   private broadcast(message: SocketServerMessage): void {
     for (const socket of this.ctx.getWebSockets()) {
-      if (socket.deserializeAttachment() !== null) this.send(socket, message);
+      const attachment =
+        socket.deserializeAttachment() as SocketAttachment | null;
+      if (attachment === null) continue;
+      if (attachment.role === "teacher") {
+        this.send(socket, message);
+        continue;
+      }
+      if (message.type === "simulation.launch") {
+        this.send(socket, {
+          ...message,
+          payload: {
+            ...message.payload,
+            run: learnerBridgeRun(message.payload.run),
+          },
+        });
+        continue;
+      }
+      if (message.type === "analysis.completed") {
+        const run = learnerBridgeRun(message.payload.run);
+        this.send(socket, {
+          ...message,
+          payload: {
+            ...message.payload,
+            analysis: learnerBridgeAnalysis(message.payload.analysis, run),
+            run,
+          },
+        });
+        continue;
+      }
+      this.send(socket, message);
     }
   }
 
@@ -2406,9 +2516,19 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
         }),
       );
 
+    const runs = this.simulationRuns();
+    const analyses = this.analyses();
     const base = {
       achievements: this.achievements(),
-      analyses: this.analyses(),
+      analyses:
+        role === "student"
+          ? analyses.map((analysis) =>
+              learnerBridgeAnalysis(
+                analysis,
+                runs.find((run) => run.attemptId === analysis.attemptId),
+              ),
+            )
+          : analyses,
       attempts: this.attempts(),
       canvasOperations: this.canvasOperations(),
       createdAt: meta.created_at,
@@ -2418,7 +2538,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       roomId: meta.room_id,
       roomSeq: meta.next_seq - 1,
       schemaId: ROOM_SCHEMA_ID,
-      simulationRuns: this.simulationRuns(),
+      simulationRuns: role === "student" ? runs.map(learnerBridgeRun) : runs,
     } satisfies Omit<RoomBootstrap, "studentCapability">;
 
     if (role === "teacher" && capability !== undefined) {

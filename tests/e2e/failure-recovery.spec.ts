@@ -35,9 +35,9 @@ test("an upload failure preserves ink and exposes an explicit retry", async ({
   await page
     .getByRole("button", { name: "Try the lesson as a student" })
     .click();
-  const operationsBefore = await page
-    .getByText(/shared operations saved/u)
-    .innerText();
+  const savedBefore = await page
+    .locator("[data-saved-strokes]")
+    .getAttribute("data-saved-strokes");
   await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(
     page.getByRole("button", { name: "Retry upload" }),
@@ -45,7 +45,10 @@ test("an upload failure preserves ink and exposes an explicit retry", async ({
   await expect(
     page.getByText("Your drawing is intact", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByText(operationsBefore)).toBeVisible();
+  await expect(page.locator("[data-saved-strokes]")).toHaveAttribute(
+    "data-saved-strokes",
+    savedBefore ?? "0",
+  );
 });
 
 test("a renderer failure keeps the verified transcript and retry control", async ({
@@ -59,9 +62,9 @@ test("a renderer failure keeps the verified transcript and retry control", async
     .getByRole("button", { name: "Try the lesson as a student" })
     .click();
   await page.getByLabel("Bridge length").fill("4.08");
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(
-    page.getByRole("heading", { name: "Bridge too short" }),
+    page.getByRole("heading", { name: "The bridge fell short." }),
   ).toBeVisible();
   await expect(
     page.getByText("The visual renderer is unavailable", { exact: false }),
@@ -70,7 +73,9 @@ test("a renderer failure keeps the verified transcript and retry control", async
     page.getByRole("button", { name: "Retry simulation" }),
   ).toBeVisible();
   await expect(
-    page.getByText(/4\.08 meter articulated bridge ends before/u),
+    page.getByText("The bridge was built from your answer: 4.08 m.", {
+      exact: true,
+    }),
   ).toBeVisible();
 });
 
@@ -88,7 +93,7 @@ test("the low-detail notice stays in flow and leaves room controls usable", asyn
     .getByRole("button", { name: "Try the lesson as a student" })
     .click();
   await page.getByLabel("Bridge length").fill("4.08");
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
 
   const notice = page.getByText("Reduced decorative effects are active", {
     exact: false,

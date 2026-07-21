@@ -17,7 +17,7 @@ async function enterWrongRun(page: Page): Promise<number> {
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByLabel("Fraction as a decimal (optional)").fill("0.34");
   const startedAt = performance.now();
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
   await page.locator(".simulation-stage--bridge").waitFor();
   return startedAt;
 }
@@ -79,8 +79,17 @@ try {
     );
   }
   await normalPage
-    .locator('[data-simulation-events*="failing"]')
+    .locator('[data-simulation-events*="sagging"]')
     .waitFor({ timeout: 12_000 });
+  await normalPage
+    .locator('[data-simulation-events*="snapping"]')
+    .waitFor({ timeout: 4_000 });
+  await normalPage
+    .locator('[data-simulation-events*="peeling"]')
+    .waitFor({ timeout: 4_000 });
+  await normalPage
+    .locator('[data-simulation-events*="collision"]')
+    .waitFor({ timeout: 4_000 });
   await normalPage
     .locator('[data-simulation-events*="falling"]')
     .waitFor({ timeout: 6_000 });
@@ -90,13 +99,56 @@ try {
   await normalPage
     .locator('[data-simulation-events*="aftermath"]')
     .waitFor({ timeout: 6_000 });
-  await normalPage.getByText("Result confirmed").waitFor({ timeout: 25_000 });
+  await normalPage.getByText("Result ready").waitFor({ timeout: 25_000 });
   const durationSeconds = (performance.now() - startedAt) / 1000;
-  if (durationSeconds < 12 || durationSeconds > 20) {
+  if (durationSeconds < 14 || durationSeconds > 21) {
     throw new Error(
       `Wrong-run wall duration was ${durationSeconds.toFixed(2)}s`,
     );
   }
+  const studentPresentation = await normalPage.locator("main").innerText();
+  const studentAccessibilityText = await normalPage
+    .locator("main")
+    .evaluate((main) =>
+      Array.from(main.querySelectorAll("[aria-label]"))
+        .map((element) => element.getAttribute("aria-label") ?? "")
+        .join(" "),
+    );
+  if (
+    /0[.,]75|\b9\s*(?:m|meters?)\b/iu.test(
+      `${studentPresentation} ${studentAccessibilityText}`,
+    )
+  ) {
+    throw new Error(
+      "The wrong-attempt learner view disclosed the correct answer",
+    );
+  }
+  for (const diagnostic of [
+    "Domain check",
+    "Immutable attempt cutoff",
+    "student canvas operation",
+    "structured response",
+    "deterministic validator",
+  ]) {
+    if (studentPresentation.includes(diagnostic)) {
+      throw new Error(
+        `The learner view exposed a raw diagnostic: ${diagnostic}`,
+      );
+    }
+  }
+  await normalPage.getByRole("button", { name: "Give me a hint" }).click();
+  await normalPage.getByText(/What is one of four equal parts/u).waitFor();
+  if (
+    /0[.,]75|\b9\s*(?:m|meters?)\b/iu.test(
+      await normalPage.locator("main").innerText(),
+    )
+  ) {
+    throw new Error("The first hint disclosed the correct answer");
+  }
+  await normalPage
+    .getByRole("button", { name: "Give me another hint" })
+    .click();
+  await normalPage.getByText("Now take three of those equal parts.").waitFor();
   const requestsBeforeReplay = mutationRequests.length;
   await normalPage.getByRole("button", { name: "Replay" }).click();
   await normalPage
@@ -106,7 +158,7 @@ try {
     throw new Error("Replay made a new mutation or GPT-backed attempt request");
   }
   await normalPage.getByRole("button", { name: "Skip to result" }).click();
-  await normalPage.getByText("Result confirmed").waitFor();
+  await normalPage.getByText("Result ready").waitFor();
 
   const reducedContext = await browser.newContext({
     reducedMotion: "reduce",
@@ -116,14 +168,14 @@ try {
   try {
     await enterWrongRun(reducedPage);
     await reducedPage
-      .getByText(/articulated bridge, vehicle tumble, water impact/u)
+      .getByText(
+        /articulated bridge, vehicle tumble, moving water, and rescue/u,
+      )
       .waitFor();
     await reducedPage
       .locator('[data-simulation-events*="splash"]')
       .waitFor({ timeout: 20_000 });
-    await reducedPage
-      .getByText("Result confirmed")
-      .waitFor({ timeout: 25_000 });
+    await reducedPage.getByText("Result ready").waitFor({ timeout: 25_000 });
   } finally {
     await reducedContext.close();
   }
@@ -142,7 +194,10 @@ try {
       phases: [
         "deploying",
         "driving",
-        "failing",
+        "sagging",
+        "snapping",
+        "peeling",
+        "collision",
         "falling",
         "splash",
         "aftermath",

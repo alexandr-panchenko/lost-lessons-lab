@@ -33,7 +33,10 @@ export type BridgeResultClass = z.infer<typeof BridgeResultClassSchema>;
 
 export const BridgeOutcomeSchema = z
   .object({
-    correctInputs: z.object({ deployedLengthMeters: z.number() }).strict(),
+    correctInputs: z
+      .object({ deployedLengthMeters: z.number() })
+      .strict()
+      .optional(),
     errorMagnitude: z.number().nonnegative(),
     explanationData: z
       .object({
@@ -41,13 +44,22 @@ export const BridgeOutcomeSchema = z
         expectedLengthMeters: z.number(),
         kitLengthMeters: z.number(),
       })
-      .strict(),
+      .strict()
+      .optional(),
     isMathematicallyCorrect: z.boolean(),
     resultClass: BridgeResultClassSchema,
     submittedInputs: BridgeSimulationInputsSchema,
   })
   .strict();
 export type BridgeOutcome = z.infer<typeof BridgeOutcomeSchema>;
+export type ClassifiedBridgeOutcome = BridgeOutcome & {
+  correctInputs: { deployedLengthMeters: number };
+  explanationData: {
+    deployedLengthMeters: number;
+    expectedLengthMeters: number;
+    kitLengthMeters: number;
+  };
+};
 
 export const HERO_BRIDGE_PARAMETERS: BridgeTaskParameters = {
   denominator: 4,
@@ -64,7 +76,7 @@ export function deriveBridgeLength(parameters: BridgeTaskParameters): number {
 export function classifyBridgeInput(
   parameters: BridgeTaskParameters,
   input: BridgeSimulationInputs,
-): BridgeOutcome {
+): ClassifiedBridgeOutcome {
   const parsedParameters = BridgeTaskParametersSchema.parse(parameters);
   const parsedInput = BridgeSimulationInputsSchema.parse(input);
   const correctLength = deriveBridgeLength(parsedParameters);

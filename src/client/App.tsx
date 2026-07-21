@@ -14,7 +14,6 @@ import { AnalysisCard } from "./feed/AnalysisCard";
 import { AnalysisSubmitPanel } from "./feed/AnalysisSubmitPanel";
 import { AchievementCard } from "./feed/AchievementCard";
 import { LearningFeed } from "./feed/LearningFeed";
-import { PreparedCorrectionPanel } from "./feed/PreparedCorrectionPanel";
 import {
   fetchRoomBootstrap,
   readRoomLocation,
@@ -33,7 +32,6 @@ import type { SpeedSimulationInputs } from "../shared/domain/speed";
 import type { StructureSimulationInputs } from "../shared/domain/structure";
 import type { WaterSimulationInputs } from "../shared/domain/water";
 import type { AnalysisRecord } from "../shared/analysis-types";
-import { preparedBridgeCorrection } from "../shared/judge-handwriting";
 import type {
   RoomBootstrap,
   SocketAuthenticatedMessage,
@@ -499,9 +497,6 @@ export function App() {
       record.layer === "student" ? Math.max(latest, record.seq) : latest,
     0,
   );
-  const latestIncorrectRunId = room.simulationRuns
-    .filter((run) => !run.outcome.isMathematicallyCorrect)
-    .at(-1)?.id;
 
   async function copyStudentLink(): Promise<void> {
     if (studentLink === null) return;
@@ -609,18 +604,12 @@ export function App() {
     });
   }
 
-  function applyPreparedCorrection(): void {
-    const prefix = "judge-correction-" + crypto.randomUUID();
-    for (const operation of preparedBridgeCorrection(prefix)) {
-      sendCanvasOperation(operation);
-    }
-    window.requestAnimationFrame(() => {
-      document.getElementById("analysis-submit-title")?.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-        block: "center",
-      });
+  function tryBridgeAgain(): void {
+    document.querySelector(".canvas-card")?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "center",
     });
   }
 
@@ -672,7 +661,7 @@ export function App() {
       );
       setCommandError(
         code === "ai_disabled"
-          ? `AI interpretation is disabled right now. Use the manual ${manualControls} controls below.`
+          ? `I couldn't read the handwriting this time. Your work is saved; enter your ${manualControls} measurement below.`
           : code === "ai_rate_limited" || code === "rate_limited"
             ? `The AI limit was reached. Use the manual ${manualControls} controls below.`
             : code.includes("canvas") || code.includes("student layer")
@@ -945,6 +934,7 @@ export function App() {
                 key={attempt.id}
                 onLaunch={launchAiRun}
                 room={roomLocation!}
+                studentPerspective={studentPerspective}
               />
             ) : null,
           )}
@@ -974,8 +964,9 @@ export function App() {
               >
                 {run.templateId === "bridge" && (
                   <BridgeSimulation
+                    onTryAgain={tryBridgeAgain}
                     run={run}
-                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+                    studentPerspective={studentPerspective}
                   />
                 )}
                 {run.templateId === "water" && (
@@ -1000,27 +991,6 @@ export function App() {
               {achievement !== undefined && (
                 <AchievementCard award={achievement} />
               )}
-              {studentPerspective &&
-                room.fixtureId === "judge-v1" &&
-                run.id === latestIncorrectRunId &&
-                !room.simulationRuns.some(
-                  (candidate) => candidate.outcome.isMathematicallyCorrect,
-                ) && (
-                  <PreparedCorrectionPanel
-                    disabled={
-                      connection !== "connected" ||
-                      pendingCount > 0 ||
-                      room.attempts.some(
-                        (candidate) =>
-                          "mode" in candidate &&
-                          candidate.mode === "ai" &&
-                          candidate.status !== "complete" &&
-                          candidate.status !== "failed",
-                      )
-                    }
-                    onApply={applyPreparedCorrection}
-                  />
-                )}
             </Fragment>
           );
         })}

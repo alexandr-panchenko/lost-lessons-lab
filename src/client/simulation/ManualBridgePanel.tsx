@@ -51,12 +51,11 @@ export function ManualBridgePanel({
   return (
     <section className="manual-card" aria-labelledby="manual-title">
       <div>
-        <p className="feed-card__label">Manual fallback · no AI claim</p>
-        <h2 id="manual-title">Enter the value yourself</h2>
+        <p className="feed-card__label">Use your measurement</p>
+        <h2 id="manual-title">Build from your answer</h2>
         <p>
-          If the interpretation is unavailable or unclear, enter the bridge
-          length from the learner&apos;s work. The same deterministic validator
-          and real physics scene run below.
+          Enter the bridge length from your work. You can solve with fractions
+          directly; the decimal field is optional.
         </p>
       </div>
       <form className="manual-form" onSubmit={submit}>
@@ -84,7 +83,7 @@ export function ManualBridgePanel({
           disabled={disabled || pendingOperations > 0}
           type="submit"
         >
-          Run manual value
+          Test this bridge
         </button>
         {pendingOperations > 0 && (
           <p className="inline-status" role="status">

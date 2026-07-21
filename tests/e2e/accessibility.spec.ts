@@ -121,9 +121,9 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
     .getByRole("button", { name: "Try the lesson as a student" })
     .click();
   await page.getByLabel("Bridge length").fill("4.08");
-  await page.getByRole("button", { name: "Run manual value" }).click();
+  await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(
-    page.getByRole("heading", { name: "Bridge too short" }),
+    page.getByRole("heading", { name: "Bridge test in progress" }),
   ).toBeVisible({ timeout: 15_000 });
   await expect
     .poll(() =>
@@ -146,7 +146,7 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
       ),
     )
     .toBeGreaterThanOrEqual(1);
-  await expect(page.getByText("Result confirmed")).toBeVisible({
+  await expect(page.getByText("Result ready")).toBeVisible({
     timeout: 25_000,
   });
   await expect

@@ -76,20 +76,39 @@ describe("deterministic bridge domain", () => {
       }),
     );
     expect(result.status).toBe("recovered");
-    expect(result.steps * (1 / 60)).toBeGreaterThanOrEqual(12);
+    expect(result.steps * (1 / 60)).toBeGreaterThanOrEqual(14);
     expect(result.steps * (1 / 60)).toBeLessThanOrEqual(20);
     expect(result.metrics.maxBridgeJointForce).toBeGreaterThan(20);
     expect(result.metrics.brokenBridgeJoints).toBeGreaterThanOrEqual(3);
     expect(result.metrics.bridgeBreakStep).not.toBeNull();
     expect(result.metrics.frontWheelExitedDeck).toBe(true);
     expect(result.metrics.maxBridgeAbsAngle).toBeGreaterThan(0.55);
-    expect(result.metrics.maxVehicleAbsAngle).toBeGreaterThan(1.2);
+    expect(result.metrics.maxVehicleAbsAngle).toBeGreaterThanOrEqual(
+      Math.PI * 2,
+    );
+    expect(
+      result.metrics.maxVehicleForwardVelocityAfterRelease,
+    ).toBeGreaterThan(2);
+    expect(result.metrics.intermediateObjectBroken).toBe(true);
+    expect(result.metrics.detachedVehiclePart).toBe(true);
     expect(result.metrics.vehicleEnteredWater).toBe(true);
     expect(result.metrics.waterImpactX).not.toBeNull();
     expect(result.metrics.waterImpactStep).not.toBeNull();
     expect(result.metrics.bridgeBreakStep!).toBeLessThan(
       result.metrics.waterImpactStep!,
     );
+    expect(result.metrics.cableSnapStep).toBeLessThan(
+      result.metrics.deckPeelStep!,
+    );
+    expect(result.metrics.deckPeelStep).toBeLessThan(
+      result.metrics.deckReleaseStep!,
+    );
+    expect(result.metrics.intermediateObjectBreakStep).toBeLessThan(
+      result.metrics.waterImpactStep!,
+    );
+    expect(result.metrics.maxWaterDisplacement).toBeGreaterThan(0.25);
+    expect(result.metrics.waterWaveReachedLeft).toBe(true);
+    expect(result.metrics.waterWaveReachedRight).toBe(true);
   });
 
   it("replays the same semantic catastrophe without exact-coordinate assertions", () => {
@@ -104,7 +123,15 @@ describe("deterministic bridge domain", () => {
       frontWheelExitedDeck: true,
       vehicleEnteredWater: true,
     });
-    expect(replay.metrics.maxVehicleAbsAngle).toBeGreaterThan(1.2);
+    expect(replay.metrics.maxVehicleAbsAngle).toBeGreaterThanOrEqual(
+      Math.PI * 2,
+    );
+    expect(replay.metrics).toMatchObject({
+      detachedVehiclePart: true,
+      intermediateObjectBroken: true,
+      waterWaveReachedLeft: true,
+      waterWaveReachedRight: true,
+    });
   });
 
   it("tears down the bridge world explicitly", () => {

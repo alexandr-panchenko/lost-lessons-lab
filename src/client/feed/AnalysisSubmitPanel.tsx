@@ -31,8 +31,8 @@ export function AnalysisSubmitPanel({
                 : "bridge"}
         </h2>
         <p>
-          Submit only the solid learner layer. The AI reads the handwriting;
-          deterministic code checks every value before physics starts.
+          Submit your work when you are ready. We&apos;ll read it and build the
+          bridge from your answer.
         </p>
       </div>
       <button
