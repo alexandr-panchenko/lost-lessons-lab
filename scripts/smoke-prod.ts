@@ -73,6 +73,22 @@ const waterTeacherResponse = await bootstrap(waterRoom.roomId, waterRoom.token);
 if (!waterTeacherResponse.ok) {
   throw new Error(`Water bootstrap failed with ${waterTeacherResponse.status}`);
 }
+
+const speedRoom = await createRoom("/speed");
+const speedTeacherResponse = await bootstrap(speedRoom.roomId, speedRoom.token);
+if (!speedTeacherResponse.ok) {
+  throw new Error(`Speed bootstrap failed with ${speedTeacherResponse.status}`);
+}
+const speedTeacher = BootstrapSchema.parse(await speedTeacherResponse.json());
+if (
+  speedTeacher.fixtureId !== "speed-shuttle-v1" ||
+  speedTeacher.canvasOperations.length < 5 ||
+  !speedTeacher.events.some(
+    (event) => event.type === "task.preview" && event.visibility === "all",
+  )
+) {
+  throw new Error("Production speed room is not a prepared real room.");
+}
 const waterTeacher = BootstrapSchema.parse(await waterTeacherResponse.json());
 if (
   waterTeacher.fixtureId !== "water-aquarium-v1" ||

@@ -11,7 +11,7 @@ const STATUS_LABELS: Record<AnalysisStatus, string> = {
   complete: "Interpretation complete",
   extracting: "Extracting visible steps…",
   failed: "Interpretation needs your help",
-  preparing: "Preparing the verified bridge inputs…",
+  preparing: "Preparing the verified simulation inputs…",
   reading: "Reading the handwriting…",
   uploading: "Saving the student-only image…",
   validating: "Checking values with deterministic math…",
@@ -130,8 +130,12 @@ export function AnalysisCard({
         <div className="analysis-fallback" role="status">
           <strong>
             Use the manual{" "}
-            {attempt.taskId === "water-task-v1" ? "water" : "bridge"} controls
-            below.
+            {attempt.taskId === "water-task-v1"
+              ? "water"
+              : attempt.taskId === "speed-task-v1"
+                ? "motion"
+                : "bridge"}{" "}
+            controls below.
           </strong>
           <p>
             The handwriting could not be interpreted safely (
@@ -177,6 +181,30 @@ export function AnalysisCard({
                 <span>Bridge length</span>
                 <strong>
                   {result.scenarioInputs.deployedLengthMeters ?? "unclear"} m
+                </strong>
+              </div>
+            </section>
+          ) : "distanceMeters" in result.scenarioInputs ? (
+            <section
+              className="analysis-values"
+              aria-label="Extracted simulation values"
+            >
+              <div>
+                <span>Speed</span>
+                <strong>
+                  {result.scenarioInputs.speedMetersPerSecond ?? "unclear"} m/s
+                </strong>
+              </div>
+              <div>
+                <span>Time</span>
+                <strong>
+                  {result.scenarioInputs.timeSeconds ?? "unclear"} s
+                </strong>
+              </div>
+              <div>
+                <span>Travel distance</span>
+                <strong>
+                  {result.scenarioInputs.distanceMeters ?? "unclear"} m
                 </strong>
               </div>
             </section>
@@ -232,7 +260,11 @@ export function AnalysisCard({
                   type="button"
                 >
                   Launch{" "}
-                  {attempt.taskId === "water-task-v1" ? "water" : "bridge"}
+                  {attempt.taskId === "water-task-v1"
+                    ? "water"
+                    : attempt.taskId === "speed-task-v1"
+                      ? "shuttle"
+                      : "bridge"}
                 </button>
               </>
             ) : (

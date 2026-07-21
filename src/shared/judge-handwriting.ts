@@ -257,3 +257,17 @@ export function preparedWaterHandwriting(
     y: 0.34,
   });
 }
+
+export function preparedSpeedHandwriting(
+  prefix = "speed-shuttle",
+): CanvasOperation[] {
+  return lineOperations({
+    height: 0.18,
+    prefix: `${prefix}-line-1`,
+    step: 0.072,
+    text: "8 x 3 = 24m",
+    width: 0.045,
+    x: 0.12,
+    y: 0.34,
+  });
+}

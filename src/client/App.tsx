@@ -23,9 +23,11 @@ import {
   submitAnalysisAttempt,
 } from "./room/room-client";
 import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
+import { ManualSpeedPanel } from "./simulation/ManualSpeedPanel";
 import { ManualWaterPanel } from "./simulation/ManualWaterPanel";
 import type { CanvasOperation } from "../shared/canvas";
 import type { BridgeSimulationInputs } from "../shared/domain/bridge";
+import type { SpeedSimulationInputs } from "../shared/domain/speed";
 import type { WaterSimulationInputs } from "../shared/domain/water";
 import type { AnalysisRecord } from "../shared/analysis-types";
 import { preparedBridgeCorrection } from "../shared/judge-handwriting";
@@ -45,6 +47,11 @@ const BridgeSimulation = lazy(() =>
 const WaterSimulation = lazy(() =>
   import("./simulation/WaterSimulation").then((module) => ({
     default: module.WaterSimulation,
+  })),
+);
+const SpeedSimulation = lazy(() =>
+  import("./simulation/SpeedSimulation").then((module) => ({
+    default: module.SpeedSimulation,
   })),
 );
 
@@ -436,6 +443,7 @@ export function App() {
   const studentPerspective = room.role === "student" || previewStudent;
   const activeLayer = studentPerspective ? "student" : "teacher";
   const isWaterRoom = room.fixtureId.startsWith("water-");
+  const isSpeedRoom = room.fixtureId.startsWith("speed-");
   const studentLink =
     isTeacher && room.studentCapability !== undefined
       ? `${window.location.origin}/r/${room.roomId}#token=${room.studentCapability}`
@@ -507,6 +515,23 @@ export function App() {
     });
   }
 
+  function submitManualSpeedAttempt(inputs: SpeedSimulationInputs): void {
+    const idempotencyKey = crypto.randomUUID();
+    queueCommand(idempotencyKey, {
+      clientId: clientId.current,
+      payload: {
+        idempotencyKey,
+        inputs,
+        previewAsStudent: isTeacher && previewStudent,
+        sourceCanvasSeq: latestStudentSeq,
+        templateId: "speed",
+      },
+      requestId: crypto.randomUUID(),
+      type: "attempt.manual-capture",
+      v: 1,
+    });
+  }
+
   function applyPreparedCorrection(): void {
     const prefix = "judge-correction-" + crypto.randomUUID();
     for (const operation of preparedBridgeCorrection(prefix)) {
@@ -552,14 +577,19 @@ export function App() {
     } catch (reason) {
       setSubmittingAnalysis(false);
       const code = reason instanceof Error ? reason.message : "analysis_failed";
+      const manualControls = isWaterRoom
+        ? "water"
+        : isSpeedRoom
+          ? "motion"
+          : "bridge";
       setCommandError(
         code === "ai_disabled"
-          ? "AI interpretation is disabled right now. Use the manual bridge controls below."
+          ? `AI interpretation is disabled right now. Use the manual ${manualControls} controls below.`
           : code === "ai_rate_limited" || code === "rate_limited"
-            ? "The AI limit was reached. Use the manual bridge controls below."
+            ? `The AI limit was reached. Use the manual ${manualControls} controls below.`
             : code.includes("canvas") || code.includes("student layer")
               ? code
-              : "The handwriting could not be submitted safely. Your drawing is intact; use the manual bridge controls below.",
+              : `The handwriting could not be submitted safely. Your drawing is intact; use the manual ${manualControls} controls below.`,
       );
     }
   }
@@ -685,7 +715,7 @@ export function App() {
           connected={connection === "connected"}
           onOperation={sendCanvasOperation}
           preparedSample={
-            room.fixtureId === "judge-v1" || room.fixtureId.startsWith("water-")
+            room.fixtureId === "judge-v1" || isWaterRoom || isSpeedRoom
           }
           records={room.canvasOperations}
           roomSeq={room.roomSeq}
@@ -706,9 +736,26 @@ export function App() {
               onSubmit={() => void submitHandwritingAttempt()}
               pendingOperations={pendingCount}
               submitting={submittingAnalysis}
-              templateId={isWaterRoom ? "water" : "bridge"}
+              templateId={
+                isWaterRoom ? "water" : isSpeedRoom ? "speed" : "bridge"
+              }
             />
-            {isWaterRoom ? (
+            {isSpeedRoom ? (
+              <ManualSpeedPanel
+                disabled={
+                  connection !== "connected" ||
+                  room.attempts.some(
+                    (attempt) =>
+                      "mode" in attempt &&
+                      attempt.mode === "ai" &&
+                      attempt.status !== "complete" &&
+                      attempt.status !== "failed",
+                  )
+                }
+                onSubmit={submitManualSpeedAttempt}
+                pendingOperations={pendingCount}
+              />
+            ) : isWaterRoom ? (
               <ManualWaterPanel
                 disabled={
                   connection !== "connected" ||
@@ -797,6 +844,12 @@ export function App() {
                 )}
                 {run.templateId === "water" && (
                   <WaterSimulation
+                    run={run}
+                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+                  />
+                )}
+                {run.templateId === "speed" && (
+                  <SpeedSimulation
                     run={run}
                     sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
                   />

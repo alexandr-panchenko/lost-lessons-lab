@@ -3,10 +3,12 @@ import { z } from "zod";
 
 import {
   analyzeBridgeSolution,
+  analyzeSpeedSolution,
   analyzeWaterSolution,
   parseAiConfiguration,
 } from "../ai/openai-responses";
 import { waterFixtureById } from "../../../fixtures/water/packs";
+import { speedFixtureById } from "../../../fixtures/speed/packs";
 import type { WorkerEnv } from "../env";
 import { AttemptUploadSchema, validatePngUpload } from "../media/png";
 import { logAnalysisMetadata } from "../security/logging";
@@ -56,6 +58,7 @@ async function runAnalysis(input: {
   const hashedRoom = await roomHash(input.roomId);
   try {
     const waterFixture = waterFixtureById(input.fixtureId);
+    const speedFixture = speedFixtureById(input.fixtureId);
     const shared = {
       config: input.config,
       imageBase64: input.imageBase64,
@@ -92,7 +95,36 @@ async function runAnalysis(input: {
         usedRepair: result.usedRepair,
       });
     };
-    if (waterFixture !== undefined) {
+    if (speedFixture !== undefined) {
+      const result = await analyzeSpeedSolution({
+        ...shared,
+        fixture: speedFixture,
+      });
+      if (!result.ok) {
+        await recordFailure(result);
+        return;
+      }
+      await input.room.setAnalysisStatus(input.attemptId, "preparing");
+      await input.room.completeSpeedAiAttempt({
+        analysis: result.validated.analysis,
+        attemptId: input.attemptId,
+        disagreement: result.validated.disagreement,
+        inputs: result.validated.inputs,
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        usedRepair: result.usedRepair,
+      });
+      logAnalysisMetadata({
+        attemptId: input.attemptId,
+        event: "analysis.completed",
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        roomHash: hashedRoom,
+        usedRepair: result.usedRepair,
+      });
+    } else if (waterFixture !== undefined) {
       const result = await analyzeWaterSolution({
         ...shared,
         fixture: waterFixture,

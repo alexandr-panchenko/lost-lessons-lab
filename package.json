@@ -15,6 +15,7 @@
     "smoke:ai:prod": "bun run scripts/verify-production-ai.ts",
     "smoke:hero:prod": "bun run scripts/verify-production-hero.ts",
     "smoke:water:prod": "bun run scripts/verify-production-water.ts",
+    "smoke:speed:prod": "bun run scripts/verify-production-speed.ts",
     "test:e2e": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log playwright test",
     "test:integration": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log vitest run --config vitest.integration.config.ts",
     "test:live-ai": "vitest run --config vitest.live-ai.config.ts --reporter=verbose --disableConsoleIntercept",

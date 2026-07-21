@@ -15,6 +15,10 @@ import {
   WaterOutcomeSchema,
   WaterSimulationInputsSchema,
 } from "./domain/water";
+import {
+  SpeedOutcomeSchema,
+  SpeedSimulationInputsSchema,
+} from "./domain/speed";
 
 export const RoomRoleSchema = z.enum(["teacher", "student"]);
 export type RoomRole = z.infer<typeof RoomRoleSchema>;
@@ -78,7 +82,7 @@ export const ManualAttemptSchema = z
     id: z.string().min(8).max(128),
     sourceCanvasSeq: z.number().int().nonnegative(),
     status: z.literal("completed"),
-    taskId: z.enum(["bridge-task-v1", "water-task-v1"]),
+    taskId: z.enum(["bridge-task-v1", "water-task-v1", "speed-task-v1"]),
   })
   .strict();
 export type ManualAttempt = z.infer<typeof ManualAttemptSchema>;
@@ -117,9 +121,24 @@ export const WaterSimulationRunSchema = z
     templateVersion: z.literal(1),
   })
   .strict();
+export const SpeedSimulationRunSchema = z
+  .object({
+    attemptId: z.string().min(8).max(128),
+    createdAt: z.string(),
+    id: z.string().min(8).max(128),
+    inputs: SpeedSimulationInputsSchema,
+    outcome: SpeedOutcomeSchema,
+    presentationVariant: z.literal("shuttle-bumper-v1"),
+    randomSeed: z.string().min(8).max(128),
+    roomSeq: z.number().int().positive(),
+    templateId: z.literal("speed"),
+    templateVersion: z.literal(1),
+  })
+  .strict();
 export const SimulationRunSchema = z.discriminatedUnion("templateId", [
   BridgeSimulationRunSchema,
   WaterSimulationRunSchema,
+  SpeedSimulationRunSchema,
 ]);
 export type SimulationRun = z.infer<typeof SimulationRunSchema>;
 
@@ -195,6 +214,15 @@ export const SocketManualAttemptMessageSchema = z
           previewAsStudent: z.boolean().default(false),
           sourceCanvasSeq: z.number().int().nonnegative(),
           templateId: z.literal("water"),
+        })
+        .strict(),
+      z
+        .object({
+          idempotencyKey: z.string().min(8).max(128),
+          inputs: SpeedSimulationInputsSchema,
+          previewAsStudent: z.boolean().default(false),
+          sourceCanvasSeq: z.number().int().nonnegative(),
+          templateId: z.literal("speed"),
         })
         .strict(),
     ]),

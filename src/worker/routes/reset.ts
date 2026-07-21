@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { judgePreparedWrongOperations } from "../../../fixtures/judge-v1/fixture";
 import { WATER_PREPARED_OPERATIONS } from "../../../fixtures/water/packs";
+import { SPEED_PREPARED_OPERATIONS } from "../../../fixtures/speed/packs";
 import type { WorkerEnv } from "../env";
 import { bearerToken, ROOM_HEADERS, RoomIdSchema } from "./rooms";
 
@@ -35,7 +36,9 @@ export function registerResetRoutes(app: Hono<AppBindings>): void {
           ? judgePreparedWrongOperations
           : current.fixtureId.startsWith("water-")
             ? WATER_PREPARED_OPERATIONS
-            : [],
+            : current.fixtureId.startsWith("speed-")
+              ? SPEED_PREPARED_OPERATIONS
+              : [],
     });
     if (!result.ok) {
       return context.json(

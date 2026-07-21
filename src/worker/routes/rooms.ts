@@ -10,6 +10,10 @@ import {
   DEFAULT_WATER_FIXTURE,
   WATER_PREPARED_OPERATIONS,
 } from "../../../fixtures/water/packs";
+import {
+  DEFAULT_SPEED_FIXTURE,
+  SPEED_PREPARED_OPERATIONS,
+} from "../../../fixtures/speed/packs";
 import type { RoomFeedEvent } from "../../shared/protocol";
 import type { WorkerEnv } from "../env";
 import {
@@ -32,14 +36,18 @@ export const ROOM_HEADERS = {
   "X-Content-Type-Options": "nosniff",
 } as const;
 
-type RoomFixture = "bridge" | "judge" | "water";
+type RoomFixture = "bridge" | "judge" | "water" | "speed";
 
 function fixtureEvents(
   createdAt: string,
   fixture: RoomFixture,
 ): RoomFeedEvent[] {
   const selected =
-    fixture === "water" ? DEFAULT_WATER_FIXTURE : bridgeRoomFixture;
+    fixture === "water"
+      ? DEFAULT_WATER_FIXTURE
+      : fixture === "speed"
+        ? DEFAULT_SPEED_FIXTURE
+        : bridgeRoomFixture;
   return [
     {
       createdAt,
@@ -59,7 +67,9 @@ function fixtureEvents(
         supportedSkills:
           fixture === "water"
             ? ["Volume", "Flow rate", "Measurement"]
-            : [...bridgeRoomFixture.supportedSkills],
+            : fixture === "speed"
+              ? ["Speed", "Time", "Distance"]
+              : [...bridgeRoomFixture.supportedSkills],
       },
       seq: 2,
       type: "teacher.setup",
@@ -73,7 +83,9 @@ function fixtureEvents(
             ? bridgeRoomFixture.fixtureLabel
             : fixture === "water"
               ? selected.fixtureLabel
-              : "Recommended starting point",
+              : fixture === "speed"
+                ? selected.fixtureLabel
+                : "Recommended starting point",
         prompt: selected.prompt,
         skillLabel: selected.skillLabel,
         taskTitle: selected.taskTitle,
@@ -132,7 +144,9 @@ async function createRoom(
           ? JUDGE_FIXTURE_ID
           : fixture === "water"
             ? DEFAULT_WATER_FIXTURE.fixtureId
-            : "guided-room-v1",
+            : fixture === "speed"
+              ? DEFAULT_SPEED_FIXTURE.fixtureId
+              : "guided-room-v1",
       roomId,
       studentCapabilityHash,
       teacherCapabilityHash,
@@ -142,7 +156,9 @@ async function createRoom(
       ? judgePreparedWrongOperations
       : fixture === "water"
         ? WATER_PREPARED_OPERATIONS
-        : [],
+        : fixture === "speed"
+          ? SPEED_PREPARED_OPERATIONS
+          : [],
   );
 
   return new Response(null, {
@@ -166,6 +182,7 @@ export function registerRoomRoutes(app: Hono<AppBindings>): void {
   app.get("/", (context) => createRoom(context, "bridge"));
   app.get("/judge", (context) => createRoom(context, "judge"));
   app.get("/water", (context) => createRoom(context, "water"));
+  app.get("/speed", (context) => createRoom(context, "speed"));
 
   app.get("/api/rooms/:roomId/bootstrap", async (context) => {
     const roomId = RoomIdSchema.safeParse(context.req.param("roomId"));

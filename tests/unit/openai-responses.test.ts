@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   analyzeBridgeSolution,
+  analyzeSpeedSolution,
   analyzeWaterSolution,
   buildOpenAiSolutionRequest,
   parseAiConfiguration,
 } from "../../src/worker/ai/openai-responses";
 import { DEFAULT_WATER_FIXTURE } from "../../fixtures/water/packs";
+import { DEFAULT_SPEED_FIXTURE } from "../../fixtures/speed/packs";
 import { wrongBridgeAnalysis } from "../fixtures/openai/solution-results";
 
 const config = parseAiConfiguration({
@@ -45,6 +47,52 @@ function refusalResponse(): Response {
 }
 
 describe("GPT-5.6 Responses boundary", () => {
+  it("uses the strict speed schema and validates the shared motion contract", async () => {
+    const speedAnalysis = {
+      confidence: 0.94,
+      finalAnswers: [{ name: "distanceMeters", unit: "m", value: 24 }],
+      firstError: null,
+      scenarioInputs: {
+        distanceMeters: 24,
+        speedMetersPerSecond: 8,
+        timeSeconds: 3,
+      },
+      schemaVersion: "solution-analysis.v1",
+      steps: [
+        {
+          normalizedExpression: "8 * 3 = 24",
+          regionId: "line-1",
+          status: "valid",
+          text: "8 × 3 = 24 m",
+        },
+      ],
+      studentFacingExplanation: "Speed times time gives 24 meters.",
+      transcription: "8 m/s × 3 s = 24 m",
+      verdict: "correct",
+    } as const;
+    const request = buildOpenAiSolutionRequest({
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+      speedFixture: DEFAULT_SPEED_FIXTURE,
+      template: "speed",
+    });
+    expect(request.text.format.name).toBe("speed_solution_analysis_v1");
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      modelResponse(speedAnalysis),
+    );
+    const result = await analyzeSpeedSolution({
+      config,
+      fetchImpl,
+      fixture: DEFAULT_SPEED_FIXTURE,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      validated: { outcome: { resultClass: "speed_correct" } },
+    });
+  });
+
   it("uses the strict water schema and validates the shared water contract", async () => {
     const waterAnalysis = {
       confidence: 0.94,

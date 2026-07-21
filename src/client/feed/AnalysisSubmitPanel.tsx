@@ -9,7 +9,7 @@ export function AnalysisSubmitPanel({
   onSubmit: () => void;
   pendingOperations: number;
   submitting: boolean;
-  templateId: "bridge" | "water";
+  templateId: "bridge" | "water" | "speed";
 }) {
   return (
     <section
@@ -19,7 +19,12 @@ export function AnalysisSubmitPanel({
       <div>
         <p className="feed-card__label">GPT-5.6 handwriting interpretation</p>
         <h2 id="analysis-submit-title">
-          Let the math control the {templateId === "water" ? "water" : "bridge"}
+          Let the math control the{" "}
+          {templateId === "water"
+            ? "water"
+            : templateId === "speed"
+              ? "shuttle"
+              : "bridge"}
         </h2>
         <p>
           Submit only the solid learner layer. The AI reads the handwriting;

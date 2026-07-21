@@ -2,13 +2,17 @@ import { z } from "zod";
 
 import { bridgeRoomFixture } from "../../../fixtures/judge-v1/fixture";
 import type { WaterFixturePack } from "../../../fixtures/water/packs";
+import type { SpeedFixturePack } from "../../../fixtures/speed/packs";
 import {
+  SPEED_SOLUTION_ANALYSIS_JSON_SCHEMA,
+  SpeedSolutionAnalysisSchema,
   SOLUTION_ANALYSIS_JSON_SCHEMA,
   SolutionAnalysisSchema,
   WATER_SOLUTION_ANALYSIS_JSON_SCHEMA,
   WaterSolutionAnalysisSchema,
   type AnalysisFailureCategory,
   type ValidatedBridgeAnalysis,
+  type ValidatedSpeedAnalysis,
   type ValidatedWaterAnalysis,
 } from "../../shared/analysis-types";
 import {
@@ -16,6 +20,7 @@ import {
   validateBridgeAnalysis,
 } from "../../shared/validation/bridge-analysis";
 import { validateWaterAnalysis } from "../../shared/validation/water-analysis";
+import { validateSpeedAnalysis } from "../../shared/validation/speed-analysis";
 
 const AiConfigurationSchema = z
   .object({
@@ -71,10 +76,14 @@ export type OpenAiSolutionRequest = {
   store: false;
   text: {
     format: {
-      name: "solution_analysis_v1" | "water_solution_analysis_v1";
+      name:
+        | "solution_analysis_v1"
+        | "water_solution_analysis_v1"
+        | "speed_solution_analysis_v1";
       schema:
         | typeof SOLUTION_ANALYSIS_JSON_SCHEMA
-        | typeof WATER_SOLUTION_ANALYSIS_JSON_SCHEMA;
+        | typeof WATER_SOLUTION_ANALYSIS_JSON_SCHEMA
+        | typeof SPEED_SOLUTION_ANALYSIS_JSON_SCHEMA;
       strict: true;
       type: "json_schema";
     };
@@ -93,21 +102,34 @@ ${fixture.prompt}
 Return solution-analysis.v1. Transcribe visible work faithfully. Extract the learner's written flow rate, time, and final volume without correcting them. Use finalAnswers name volumeLiters and normalize a visible liter unit to one of the schema values. Identify the likely first mathematical error without shaming the learner. Do not decide simulation correctness; deterministic code will check the values against the curated task parameters. Use null for a value that is not visible. Mark the result ambiguous or unreadable when appropriate.`;
 }
 
+function speedInstruction(fixture: SpeedFixturePack): string {
+  return `Read only the learner handwriting in the image and interpret it for this exact task:
+${fixture.prompt}
+
+Return solution-analysis.v1. Transcribe visible work faithfully. Extract the learner's written speed, time, and final distance without correcting them. Use finalAnswers name distanceMeters and normalize a visible meter unit to one of the schema values. Identify the likely first mathematical error without shaming the learner. Do not decide simulation correctness; deterministic code will check the values against the curated task parameters. Use null for a value that is not visible. Mark the result ambiguous or unreadable when appropriate.`;
+}
+
 export function buildOpenAiSolutionRequest(input: {
   imageBase64: string;
   repairInstruction?: string;
   safetyIdentifier: string;
-  template?: "bridge" | "water";
+  template?: "bridge" | "water" | "speed";
   waterFixture?: WaterFixturePack;
+  speedFixture?: SpeedFixturePack;
 }): OpenAiSolutionRequest {
   const template = input.template ?? "bridge";
   if (template === "water" && input.waterFixture === undefined) {
     throw new Error("A curated water fixture is required");
   }
+  if (template === "speed" && input.speedFixture === undefined) {
+    throw new Error("A curated speed fixture is required");
+  }
   const baseInstruction =
     template === "water"
       ? waterInstruction(input.waterFixture as WaterFixturePack)
-      : BASE_INSTRUCTION;
+      : template === "speed"
+        ? speedInstruction(input.speedFixture as SpeedFixturePack)
+        : BASE_INSTRUCTION;
   const instruction = input.repairInstruction
     ? `${baseInstruction}\n\n${input.repairInstruction}`
     : baseInstruction;
@@ -135,11 +157,15 @@ export function buildOpenAiSolutionRequest(input: {
         name:
           template === "water"
             ? "water_solution_analysis_v1"
-            : "solution_analysis_v1",
+            : template === "speed"
+              ? "speed_solution_analysis_v1"
+              : "solution_analysis_v1",
         schema:
           template === "water"
             ? WATER_SOLUTION_ANALYSIS_JSON_SCHEMA
-            : SOLUTION_ANALYSIS_JSON_SCHEMA,
+            : template === "speed"
+              ? SPEED_SOLUTION_ANALYSIS_JSON_SCHEMA
+              : SOLUTION_ANALYSIS_JSON_SCHEMA,
         strict: true,
         type: "json_schema",
       },
@@ -226,6 +252,26 @@ export type WaterSolutionAnalysisRunResult =
       validationIssues?: string[];
     };
 
+export type SpeedSolutionAnalysisRunResult =
+  | {
+      latencyMs: number;
+      modelId: string;
+      ok: true;
+      responseId: string;
+      usage: OpenAiUsage;
+      usedRepair: boolean;
+      validated: ValidatedSpeedAnalysis;
+    }
+  | {
+      category: AnalysisFailureCategory;
+      diagnostic?: string;
+      latencyMs: number;
+      ok: false;
+      upstreamStatus?: number;
+      usedRepair: boolean;
+      validationIssues?: string[];
+    };
+
 class UpstreamFailure extends Error {
   constructor(
     readonly retriable: boolean,
@@ -272,8 +318,9 @@ async function requestOnce(input: {
   repairInstruction?: string;
   safetyIdentifier: string;
   signal: AbortSignal;
-  template?: "bridge" | "water";
+  template?: "bridge" | "water" | "speed";
   waterFixture?: WaterFixturePack;
+  speedFixture?: SpeedFixturePack;
 }): Promise<{
   modelId: string;
   responseId: string;
@@ -543,6 +590,142 @@ export async function analyzeWaterSolution(input: {
         }
         await input.onStage?.("validating");
         const semantic = validateWaterAnalysis(
+          schema.data,
+          input.fixture.parameters,
+        );
+        if (semantic.ok) {
+          return {
+            latencyMs: Date.now() - startedAt,
+            modelId: response.modelId,
+            ok: true,
+            responseId: response.responseId,
+            usage: response.usage,
+            usedRepair,
+            validated: semantic.value,
+          };
+        }
+        if (attempt >= input.config.AI_MAX_RETRIES) {
+          return {
+            category: "semantic_invalid",
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            usedRepair,
+            validationIssues: semantic.issues,
+          };
+        }
+        repairInstruction = semanticRepairMessage(semantic.issues);
+        usedRepair = true;
+      } catch (error) {
+        const upstream =
+          error instanceof UpstreamFailure
+            ? error
+            : new UpstreamFailure(false, "upstream");
+        if (!upstream.retriable || attempt >= input.config.AI_MAX_RETRIES) {
+          return {
+            category: upstream.category,
+            ...(upstream.diagnostic === undefined
+              ? {}
+              : { diagnostic: upstream.diagnostic }),
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            ...(upstream.status === undefined
+              ? {}
+              : { upstreamStatus: upstream.status }),
+            usedRepair,
+          };
+        }
+        usedRepair = true;
+      }
+    }
+    return {
+      category: "upstream",
+      latencyMs: Date.now() - startedAt,
+      ok: false,
+      usedRepair,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function analyzeSpeedSolution(input: {
+  config: AiConfiguration;
+  fetchImpl?: typeof fetch;
+  fixture: SpeedFixturePack;
+  imageBase64: string;
+  onStage?: (
+    stage: "reading" | "extracting" | "validating",
+  ) => Promise<void> | void;
+  safetyIdentifier: string;
+}): Promise<SpeedSolutionAnalysisRunResult> {
+  const startedAt = Date.now();
+  if (
+    input.config.AI_ENABLED !== "true" ||
+    input.config.OPENAI_API_KEY === undefined
+  ) {
+    return {
+      category: "ai_disabled",
+      latencyMs: 0,
+      ok: false,
+      usedRepair: false,
+    };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    input.config.AI_TIMEOUT_MS,
+  );
+  const fetchImpl: typeof fetch =
+    input.fetchImpl ?? ((resource, init) => globalThis.fetch(resource, init));
+  let repairInstruction: string | undefined;
+  let usedRepair = false;
+  try {
+    for (
+      let attempt = 0;
+      attempt <= input.config.AI_MAX_RETRIES;
+      attempt += 1
+    ) {
+      await input.onStage?.("reading");
+      try {
+        const response = await requestOnce({
+          apiKey: input.config.OPENAI_API_KEY,
+          fetchImpl,
+          imageBase64: input.imageBase64,
+          ...(repairInstruction === undefined ? {} : { repairInstruction }),
+          safetyIdentifier: input.safetyIdentifier,
+          signal: controller.signal,
+          speedFixture: input.fixture,
+          template: "speed",
+        });
+        await input.onStage?.("extracting");
+        const schema = SpeedSolutionAnalysisSchema.safeParse(response.result);
+        if (!schema.success) {
+          if (attempt >= input.config.AI_MAX_RETRIES) {
+            return {
+              category: "invalid_schema",
+              latencyMs: Date.now() - startedAt,
+              ok: false,
+              usedRepair,
+            };
+          }
+          repairInstruction =
+            "The prior result did not match the required strict speed schema. Return every required field with no additional fields.";
+          usedRepair = true;
+          continue;
+        }
+        if (
+          schema.data.verdict === "unreadable" ||
+          schema.data.verdict === "ambiguous"
+        ) {
+          return {
+            category: schema.data.verdict,
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            usedRepair,
+          };
+        }
+        await input.onStage?.("validating");
+        const semantic = validateSpeedAnalysis(
           schema.data,
           input.fixture.parameters,
         );

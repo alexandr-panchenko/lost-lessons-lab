@@ -5,6 +5,7 @@ import {
   type BridgeOutcome,
 } from "./domain/bridge";
 import { WaterSimulationInputsSchema, type WaterOutcome } from "./domain/water";
+import { SpeedSimulationInputsSchema, type SpeedOutcome } from "./domain/speed";
 
 const BoundedTextSchema = z.string().trim().min(1).max(320);
 
@@ -92,9 +93,33 @@ export const WaterSolutionAnalysisSchema = SolutionAnalysisSchema.omit({
 });
 export type WaterSolutionAnalysis = z.infer<typeof WaterSolutionAnalysisSchema>;
 
+const SpeedFinalAnswerSchema = z
+  .object({
+    name: z.literal("distanceMeters"),
+    unit: z.enum(["m", "meter", "meters", "metre", "metres"]).nullable(),
+    value: z.number().finite().nullable(),
+  })
+  .strict();
+
+export const SpeedSolutionAnalysisSchema = SolutionAnalysisSchema.omit({
+  finalAnswers: true,
+  scenarioInputs: true,
+}).extend({
+  finalAnswers: z.array(SpeedFinalAnswerSchema).max(8),
+  scenarioInputs: z
+    .object({
+      distanceMeters: z.number().finite().nullable(),
+      speedMetersPerSecond: z.number().finite().nullable(),
+      timeSeconds: z.number().finite().nullable(),
+    })
+    .strict(),
+});
+export type SpeedSolutionAnalysis = z.infer<typeof SpeedSolutionAnalysisSchema>;
+
 export const AnySolutionAnalysisSchema = z.union([
   SolutionAnalysisSchema,
   WaterSolutionAnalysisSchema,
+  SpeedSolutionAnalysisSchema,
 ]);
 export type AnySolutionAnalysis = z.infer<typeof AnySolutionAnalysisSchema>;
 
@@ -263,6 +288,57 @@ export const WATER_SOLUTION_ANALYSIS_JSON_SCHEMA = {
   },
 } as const;
 
+export const SPEED_SOLUTION_ANALYSIS_JSON_SCHEMA = {
+  ...SOLUTION_ANALYSIS_JSON_SCHEMA,
+  properties: {
+    ...SOLUTION_ANALYSIS_JSON_SCHEMA.properties,
+    finalAnswers: {
+      items: {
+        additionalProperties: false,
+        properties: {
+          name: { const: "distanceMeters", type: "string" },
+          unit: {
+            anyOf: [
+              {
+                enum: ["m", "meter", "meters", "metre", "metres"],
+                type: "string",
+              },
+              { type: "null" },
+            ],
+          },
+          value: { anyOf: [{ type: "number" }, { type: "null" }] },
+        },
+        required: ["name", "value", "unit"],
+        type: "object",
+      },
+      maxItems: 8,
+      type: "array",
+    },
+    scenarioInputs: {
+      additionalProperties: false,
+      properties: {
+        distanceMeters: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          description:
+            "The final travel distance written by the learner, in meters.",
+        },
+        speedMetersPerSecond: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          description:
+            "The speed written by the learner, in meters per second.",
+        },
+        timeSeconds: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          description:
+            "The travel duration written by the learner, in seconds.",
+        },
+      },
+      required: ["speedMetersPerSecond", "timeSeconds", "distanceMeters"],
+      type: "object",
+    },
+  },
+} as const;
+
 export const AnalysisStatusSchema = z.enum([
   "uploading",
   "reading",
@@ -313,7 +389,7 @@ export const AiAttemptSchema = z
     roomSeq: z.number().int().positive(),
     sourceCanvasSeq: z.number().int().nonnegative(),
     status: AnalysisStatusSchema,
-    taskId: z.enum(["bridge-task-v1", "water-task-v1"]),
+    taskId: z.enum(["bridge-task-v1", "water-task-v1", "speed-task-v1"]),
   })
   .strict();
 export type AiAttempt = z.infer<typeof AiAttemptSchema>;
@@ -345,4 +421,11 @@ export type ValidatedWaterAnalysis = {
   disagreement: boolean;
   inputs: z.infer<typeof WaterSimulationInputsSchema>;
   outcome: WaterOutcome;
+};
+
+export type ValidatedSpeedAnalysis = {
+  analysis: SpeedSolutionAnalysis;
+  disagreement: boolean;
+  inputs: z.infer<typeof SpeedSimulationInputsSchema>;
+  outcome: SpeedOutcome;
 };
