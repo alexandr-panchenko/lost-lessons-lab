@@ -32,9 +32,7 @@ test("an upload failure preserves ink and exposes an explicit retry", async ({
     });
   });
   await page.goto("/judge");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
   const savedBefore = await page
     .locator("[data-saved-strokes]")
     .getAttribute("data-saved-strokes");
@@ -57,10 +55,17 @@ test("a renderer failure keeps the verified transcript and retry control", async
   await page.addInitScript(() => {
     Reflect.set(window, "__LOST_LESSONS_TEST_RENDERER_FAILURE__", true);
   });
+  await page.route("**/api/rooms/*/attempts", (route) =>
+    route.fulfill({
+      body: JSON.stringify({ error: "ai_disabled", fallback: "manual" }),
+      contentType: "application/json",
+      status: 503,
+    }),
+  );
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Student lesson" }).click();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(
@@ -73,13 +78,13 @@ test("a renderer failure keeps the verified transcript and retry control", async
     page.getByRole("button", { name: "Retry simulation" }),
   ).toBeVisible();
   await expect(
-    page.getByText("The bridge was built from your answer: 4.08 m.", {
+    page.getByText("It was built from your answer: 4.08 m.", {
       exact: true,
     }),
   ).toBeVisible();
 });
 
-test("the low-detail notice stays in flow and leaves room controls usable", async ({
+test("constrained rendering stays quiet and leaves room controls usable", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -88,19 +93,23 @@ test("the low-detail notice stays in flow and leaves room controls usable", asyn
       value: 2,
     });
   });
+  await page.route("**/api/rooms/*/attempts", (route) =>
+    route.fulfill({
+      body: JSON.stringify({ error: "ai_disabled", fallback: "manual" }),
+      contentType: "application/json",
+      status: 503,
+    }),
+  );
   await page.goto("/judge");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Test this bridge" }).click();
 
-  const notice = page.getByText("Reduced decorative effects are active", {
-    exact: false,
-  });
-  await expect(notice).toBeVisible();
-  await expect(notice).toHaveCSS("position", "static");
-  await page.getByRole("button", { name: "Teacher view" }).click();
+  await expect(
+    page.getByText("Reduced decorative effects are active", { exact: false }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Teacher setup" }).click();
   await page.getByRole("button", { name: "Reset current task" }).click();
   await expect(page.locator(".simulation-card")).toHaveCount(0);
 });

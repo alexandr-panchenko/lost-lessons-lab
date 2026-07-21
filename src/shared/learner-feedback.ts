@@ -22,7 +22,7 @@ export const CURATED_WRONG_BRIDGE_FEEDBACK: LearnerBridgeFeedback = {
     "The denominator tells you how many equal parts to split the 12-meter kit into. What is one of four equal parts?",
     "Now take three of those equal parts.",
   ],
-  observation: "The bridge was built from your answer: 4.08 m.",
+  observation: "It was built from your answer: 4.08 m.",
 };
 
 export function containsHiddenBridgeAnswer(value: string): boolean {

@@ -310,16 +310,16 @@ CI E2E uses deterministic model fixtures unless a test is explicitly in the live
 ### E2E-01 — Full judge hero
 
 1. Open `/judge`.
-2. Confirm a unique room route and guided content.
-3. Switch to learner view.
-4. Confirm task and prepared work.
-5. Press **Run my solution**.
+2. Confirm a unique room route opens directly in the real student capability.
+3. Confirm the compact Student lesson / Teacher setup switch works in the same tab.
+4. Confirm the task, empty canvas, and secondary **Load sample mistake** control.
+5. Load the sample and press **Run my solution**.
 6. Confirm staged statuses.
 7. Confirm recognition card contains `0.34` and `4.08 m`.
 8. Allow countdown.
 9. Confirm failure simulation and text transcript.
 10. Confirm disaster discovery.
-11. Apply prepared correction.
+11. Press **Try again**, then load or write the correction.
 12. Submit after previous analysis is complete.
 13. Confirm `0.75` and `9 m`.
 14. Confirm successful crossing and progress achievement.

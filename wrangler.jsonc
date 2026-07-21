@@ -22,7 +22,7 @@
     "APP_ENV": "production",
     "PUBLIC_APP_ORIGIN": "https://lost-lessons-lab.sanocks.workers.dev",
     "PUBLIC_SUPPORTING_SCENARIOS_ENABLED": "false",
-    "AI_TIMEOUT_MS": "24000",
+    "AI_TIMEOUT_MS": "60000",
     "AI_MAX_RETRIES": "1",
     "AI_ROOM_LIMIT_PER_HOUR": "60",
     "AI_IP_LIMIT_PER_HOUR": "120",
@@ -44,6 +44,13 @@
       },
     ],
   },
+  "workflows": [
+    {
+      "name": "lost-lessons-analysis",
+      "binding": "ANALYSIS_WORKFLOW",
+      "class_name": "AnalysisWorkflow",
+    },
+  ],
   "exports": {
     "RoomDurableObject": {
       "type": "durable-object",

@@ -28,19 +28,6 @@ type BridgeSimulationProps = {
 
 type ScreenPoint = { x: number; y: number };
 
-const PHASE_LABELS: Record<BridgeVisualPhase, string> = {
-  aftermath: "Rescue bubble deployed",
-  collision: "Construction sign collision",
-  crossed: "Crossing complete",
-  deploying: "Deploying bridge sections",
-  driving: "Vehicle approaching the gap",
-  falling: "Vehicle falling",
-  peeling: "Outer deck peeling away",
-  sagging: "Bridge bending under load",
-  snapping: "Support cable snapped",
-  splash: "River impact",
-};
-
 export function BridgeSimulation({
   onTryAgain,
   run,
@@ -132,11 +119,11 @@ export function BridgeSimulation({
       );
       const brokenAge =
         simulation.metrics.bridgeBreakStep === null
-          ? Number.POSITIVE_INFINITY
+          ? -1
           : (snapshot.stepCount - simulation.metrics.bridgeBreakStep) / 60;
       const impactAge =
         simulation.metrics.waterImpactStep === null
-          ? Number.POSITIVE_INFINITY
+          ? -1
           : (snapshot.stepCount - simulation.metrics.waterImpactStep) / 60;
       const actionPhase = [
         "sagging",
@@ -339,7 +326,7 @@ export function BridgeSimulation({
       }
 
       const towerTop = project(-0.08, 1.62);
-      const bankBottom = simulation.waterSurface.baselineY - 0.08;
+      const bankBottom = -5.4;
       if (!staticLayersReady) {
         drawingTarget = terrainScene;
 
@@ -444,33 +431,33 @@ export function BridgeSimulation({
           .stroke({ color: 0x6c5748, width: 3 });
       }
 
-      // An unlabeled ghost span keeps the visual shortfall legible without giving away the answer.
-      for (let marker = 0; marker < 12; marker += 1) {
-        const startX = (marker / 12) * BRIDGE_GAP_METERS;
-        line(
-          project(startX, 0.52),
-          project(startX + 0.38, 0.52),
-          0xffffff,
-          3,
-          0.56,
-        );
-      }
-      if (!run.outcome.isMathematicallyCorrect) {
-        const start = project(simulation.bridgeLengthMeters, 0.63);
-        const end = project(BRIDGE_GAP_METERS, 0.63);
-        line(start, end, 0xc83e32, 5, 0.9);
-        line(
-          project(simulation.bridgeLengthMeters, 0.46),
-          project(simulation.bridgeLengthMeters, 0.8),
-          0xc83e32,
-          5,
-        );
-        line(
-          project(BRIDGE_GAP_METERS, 0.46),
-          project(BRIDGE_GAP_METERS, 0.8),
-          0xc83e32,
-          5,
-        );
+      // The receiving bracket remains visible across the unfilled gap. Its
+      // shape—not a measurement line—makes the short bridge self-explanatory.
+      const bracketActive =
+        snapshot.phase === "locking" || snapshot.phase === "crossed";
+      polygon(
+        [
+          project(8.87, 0.34),
+          project(9.17, 0.34),
+          project(9.17, -0.12),
+          project(9.03, -0.12),
+          project(9.03, 0.16),
+          project(8.87, 0.16),
+        ],
+        bracketActive ? 0xf6c453 : 0x355f73,
+        0x263a5a,
+        4,
+      );
+      if (bracketActive) {
+        const lockPulse = project(9.02, 0.44);
+        scene
+          .circle(
+            lockPulse.x,
+            lockPulse.y,
+            (0.08 + Math.sin(snapshot.stepCount * 0.12) * 0.018) * scale,
+          )
+          .fill({ color: 0xfff27a, alpha: 0.9 })
+          .stroke({ color: 0xe65d3f, width: 2 });
       }
 
       // Articulated deck: every rendered panel follows its Planck body.
@@ -511,37 +498,97 @@ export function BridgeSimulation({
         }
       });
 
-      // A suspended maintenance sign is a lightweight physical obstacle.
-      if (simulation.signPieces.length > 0) {
-        const signAnchor = project(4.7, 0.45);
-        if (!simulation.metrics.intermediateObjectBroken) {
-          line(
-            signAnchor,
-            bodyPoint(simulation.signPieces[0]!, -0.2, 0),
-            0x574552,
-            2.5,
-          );
-        }
-        simulation.signPieces.forEach((piece, index) => {
-          polygon(
-            [
-              bodyPoint(piece, -0.33, 0.22),
-              bodyPoint(piece, 0.33, 0.22),
-              bodyPoint(piece, 0.33, -0.22),
-              bodyPoint(piece, -0.33, -0.22),
-            ],
-            index === 0 ? 0xf6c453 : 0xff8a47,
-            0x263a5a,
-            3,
-          );
-          line(
-            bodyPoint(piece, -0.2, 0.12),
-            bodyPoint(piece, 0.2, -0.12),
-            0xffffff,
-            4,
-          );
-        });
-      }
+      // Recognizable maintenance boat: stable hull, cabin, mast, and a small
+      // lightweight canopy/cargo system that can break without capsizing it.
+      polygon(
+        [
+          bodyPoint(simulation.boat, -1.16, 0.18),
+          bodyPoint(simulation.boat, 1.16, 0.18),
+          bodyPoint(simulation.boat, 0.82, -0.28),
+          bodyPoint(simulation.boat, -0.78, -0.28),
+        ],
+        0xf0b94d,
+        0x263a5a,
+        4,
+      );
+      polygon(
+        [
+          bodyPoint(simulation.boat, -0.34, 0.2),
+          bodyPoint(simulation.boat, 0.34, 0.2),
+          bodyPoint(simulation.boat, 0.25, 0.55),
+          bodyPoint(simulation.boat, -0.22, 0.55),
+        ],
+        0xe65d3f,
+        0x263a5a,
+        3,
+      );
+      line(
+        bodyPoint(simulation.boat, -0.66, -0.04),
+        bodyPoint(simulation.boat, 0.86, -0.04),
+        0xffffff,
+        3,
+        0.86,
+      );
+      line(
+        bodyPoint(simulation.boat, -0.08, 0.55),
+        bodyPoint(simulation.boat, -0.08, 0.88),
+        0x263a5a,
+        3,
+      );
+      const mastLight = bodyPoint(simulation.boat, -0.08, 0.92);
+      scene
+        .circle(mastLight.x, mastLight.y, 0.07 * scale)
+        .fill({ color: 0xfff27a })
+        .stroke({ color: 0x263a5a, width: 2 });
+      simulation.boatCanopy.forEach((piece, index) => {
+        const horizontal = index === 2;
+        polygon(
+          [
+            bodyPoint(
+              piece,
+              horizontal ? -0.66 : -0.07,
+              horizontal ? 0.07 : 0.43,
+            ),
+            bodyPoint(
+              piece,
+              horizontal ? 0.66 : 0.07,
+              horizontal ? 0.07 : 0.43,
+            ),
+            bodyPoint(
+              piece,
+              horizontal ? 0.66 : 0.07,
+              horizontal ? -0.07 : -0.43,
+            ),
+            bodyPoint(
+              piece,
+              horizontal ? -0.66 : -0.07,
+              horizontal ? -0.07 : -0.43,
+            ),
+          ],
+          0x355f73,
+          0x263a5a,
+          3,
+        );
+      });
+      simulation.boatCargo.forEach((crate, index) => {
+        polygon(
+          [
+            bodyPoint(crate, -0.22, 0.22),
+            bodyPoint(crate, 0.22, 0.22),
+            bodyPoint(crate, 0.22, -0.22),
+            bodyPoint(crate, -0.22, -0.22),
+          ],
+          index % 2 === 0 ? 0xe65d3f : 0xd9853d,
+          0x263a5a,
+          3,
+        );
+        line(
+          bodyPoint(crate, -0.15, 0.15),
+          bodyPoint(crate, 0.15, -0.15),
+          0xffe0a3,
+          2,
+        );
+      });
 
       // Suspension links, chassis, cab, driver, and independently rotating wheels.
       const rearMount = bodyPoint(simulation.chassis, -0.39, -0.05);
@@ -589,17 +636,19 @@ export function BridgeSimulation({
         0x263a5a,
         2,
       );
-      const driver = bodyPoint(simulation.chassis, 0.23, 0.58);
-      scene
-        .circle(driver.x, driver.y, 0.12 * scale)
-        .fill({ color: 0xf6c453 })
-        .stroke({ color: 0x263a5a, width: 3 });
-      line(
-        bodyPoint(simulation.chassis, 0.13, 0.67),
-        bodyPoint(simulation.chassis, 0.36, 0.67),
-        0xffffff,
-        4,
-      );
+      if (snapshot.phase !== "splash" && snapshot.phase !== "aftermath") {
+        const driver = bodyPoint(simulation.chassis, 0.23, 0.58);
+        scene
+          .circle(driver.x, driver.y, 0.12 * scale)
+          .fill({ color: 0xf6c453 })
+          .stroke({ color: 0x263a5a, width: 3 });
+        line(
+          bodyPoint(simulation.chassis, 0.13, 0.67),
+          bodyPoint(simulation.chassis, 0.36, 0.67),
+          0xffffff,
+          4,
+        );
+      }
       for (const wheel of simulation.wheels) {
         const wheelPosition = project(
           wheel.getPosition().x,
@@ -637,6 +686,19 @@ export function BridgeSimulation({
           0xf0b94d,
           0x263a5a,
           2,
+        );
+      }
+      for (const pontoon of simulation.pontoons) {
+        polygon(
+          [
+            bodyPoint(pontoon, -0.32, 0.11),
+            bodyPoint(pontoon, 0.32, 0.11),
+            bodyPoint(pontoon, 0.32, -0.11),
+            bodyPoint(pontoon, -0.32, -0.11),
+          ],
+          0xff8a47,
+          0xffffff,
+          4,
         );
       }
 
@@ -736,7 +798,8 @@ export function BridgeSimulation({
         }
       }
 
-      // Comic safety beat: the hard-hat driver resurfaces inside a rescue bubble.
+      // Comic safety beat: the physical orange pontoons raise the vehicle while
+      // the driver appears in a clearly readable flotation collar.
       if (snapshot.phase === "splash" || snapshot.phase === "aftermath") {
         const rescueX = impactX + 0.22;
         const rescue = project(
@@ -746,9 +809,6 @@ export function BridgeSimulation({
             Math.sin(snapshot.stepCount * 0.085) * 0.035,
         );
         scene
-          .circle(rescue.x, rescue.y, 0.31 * scale)
-          .fill({ color: 0xdfffff, alpha: 0.32 })
-          .stroke({ color: 0xffffff, width: 5, alpha: 0.86 })
           .circle(rescue.x, rescue.y + 2, 0.14 * scale)
           .fill({ color: 0xf6c453 })
           .stroke({ color: 0x263a5a, width: 3 });
@@ -761,12 +821,12 @@ export function BridgeSimulation({
         scene
           .ellipse(
             rescue.x,
-            rescue.y + 0.23 * scale,
-            0.38 * scale,
-            0.13 * scale,
+            rescue.y + 0.16 * scale,
+            0.25 * scale,
+            0.11 * scale,
           )
-          .stroke({ color: 0xff7b3d, width: 8 })
-          .stroke({ color: 0xffffff, width: 3, alpha: 0.8 });
+          .stroke({ color: 0xff7b3d, width: 9 })
+          .stroke({ color: 0xffffff, width: 2, alpha: 0.9 });
         if (impactAge > 1.1) {
           line(
             { x: rescue.x + 0.2 * scale, y: rescue.y - 0.08 * scale },
@@ -798,6 +858,19 @@ export function BridgeSimulation({
         0x263a5a,
         3,
       );
+      if (simulation.metrics.successStep !== null) {
+        const beacon = project(9.72, 1.76);
+        scene
+          .circle(
+            beacon.x,
+            beacon.y,
+            (0.14 + Math.sin(snapshot.stepCount * 0.1) * 0.025) * scale,
+          )
+          .fill({ color: 0xfff27a, alpha: 0.92 })
+          .stroke({ color: 0xe65d3f, width: 5 });
+        line(project(10.15, 1.08), project(9.86, 1.45), 0x174e70, 5);
+        line(project(10.15, 1.08), project(10.45, 1.43), 0x174e70, 5);
+      }
 
       app.render();
     };
@@ -912,10 +985,14 @@ export function BridgeSimulation({
   const transcript =
     expectedStatus === "crossed"
       ? `The ${run.inputs.deployedLengthMeters} meter bridge spans the 9 meter ravine. The rescue vehicle crosses safely.`
-      : `The bridge was built from your answer: ${run.inputs.deployedLengthMeters} m. It bent, broke apart, and sent the vehicle through the construction sign into the river. The driver resurfaced safely.`;
+      : `It was built from your answer: ${run.inputs.deployedLengthMeters} m. It sagged, lost a support cable, and sent the vehicle through the maintenance boat canopy into the river. Emergency pontoons brought the driver safely back to the surface.`;
 
   return (
-    <article className="simulation-card" aria-labelledby={`run-${run.id}`}>
+    <article
+      className="simulation-card"
+      aria-labelledby={`run-${run.id}`}
+      data-attempt-run={run.attemptId}
+    >
       <div className="simulation-card__heading">
         <div>
           <p className="feed-card__label">Your bridge test</p>
@@ -936,14 +1013,6 @@ export function BridgeSimulation({
             <strong>
               Built from your answer: {run.inputs.deployedLengthMeters} m
             </strong>
-            {run.outcome.isMathematicallyCorrect && (
-              <span>{BRIDGE_GAP_METERS} m needed</span>
-            )}
-          </div>
-        )}
-        {!rendererError && (
-          <div className="bridge-phase" aria-hidden="true">
-            {PHASE_LABELS[visualPhase]}
           </div>
         )}
         {rendererError && (
@@ -952,12 +1021,6 @@ export function BridgeSimulation({
           </p>
         )}
       </div>
-      {quality.lowDetail && !rendererError && (
-        <p className="renderer-fallback renderer-fallback--notice">
-          Reduced decorative effects are active. The articulated bridge, vehicle
-          tumble, moving water, and rescue result remain complete.
-        </p>
-      )}
       <div className="simulation-controls" aria-label="Simulation controls">
         <button
           className="tool-button"

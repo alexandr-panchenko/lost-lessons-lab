@@ -6,7 +6,7 @@ test("the first screen names the next action and exposes a keyboard skip path", 
   await page.goto("/judge");
 
   const nextAction = page.getByRole("button", {
-    name: "Try the lesson as a student",
+    name: "Run my solution",
   });
   await expect(nextAction).toBeVisible();
   const nextActionBox = await nextAction.boundingBox();
@@ -39,6 +39,7 @@ test("the first screen names the next action and exposes a keyboard skip path", 
     ),
   ).toBe(true);
 
+  await page.getByRole("button", { name: "Teacher setup" }).click();
   await page
     .getByLabel("Describe the specific gap")
     .fill("quadratic equations");
@@ -46,12 +47,12 @@ test("the first screen names the next action and exposes a keyboard skip path", 
   const setupStatus = page.locator(".inline-status[aria-live='polite']");
   await expect(setupStatus).toContainText("not available in this rescue build");
 
-  const preview = page.getByRole("button", {
-    name: "Try the lesson as a student",
-  });
+  const preview = page.getByRole("button", { name: "Student lesson" });
   await preview.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Student view", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".room-intro__role", { hasText: "Student lesson" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("img", { name: /drawing canvas/u }),
   ).toHaveAttribute("aria-describedby", "canvas-instructions");
@@ -115,11 +116,17 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
     }
     Reflect.set(window, "AudioContext", TestAudioContext);
   });
+  await page.route("**/api/rooms/*/attempts", (route) =>
+    route.fulfill({
+      body: JSON.stringify({ error: "ai_disabled", fallback: "manual" }),
+      contentType: "application/json",
+      status: 503,
+    }),
+  );
 
   await page.goto("/judge");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(

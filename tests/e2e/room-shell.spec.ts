@@ -1,27 +1,30 @@
 import { expect, test } from "@playwright/test";
 
-test("creates a guided teacher room and survives reload", async ({ page }) => {
+test("creates a fresh judge lesson and survives reload", async ({ page }) => {
   const requestedUrls: string[] = [];
   page.on("request", (request) => requestedUrls.push(request.url()));
 
   await page.goto("/judge");
   await expect(page).toHaveURL(/\/r\/rm_[A-Za-z0-9_-]+#token=/u);
-  const roomUrl = page.url();
 
   await expect(
-    page.getByRole("heading", { name: "Make the math move." }),
+    page.getByRole("heading", { name: "Your math controls the bridge." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", {
-      name: "What does your learner struggle with?",
-    }),
+    page.locator(".room-intro__role", { hasText: "Student lesson" }),
   ).toBeVisible();
+  const roomUrl = page.url();
   await expect(
     page.getByRole("heading", { name: "Fractions and the bridge" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Try the lesson as a student" }),
+    page.getByRole("button", { name: "Run my solution" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Load sample mistake" }),
+  ).toBeVisible();
+  await expect(page.locator('[data-saved-strokes="0"]')).toBeVisible();
+  await expect(page.locator(".simulation-card")).toHaveCount(0);
   await expect(page.getByRole("status")).toContainText("Live room connected");
   expect(requestedUrls.every((url) => !url.includes("#token="))).toBe(true);
 
@@ -32,50 +35,50 @@ test("creates a guided teacher room and survives reload", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("judge switches the same tab to the real student capability and back", async ({
+test("judge switches the same tab between real capabilities", async ({
   context,
   page,
 }) => {
   await page.goto("/judge");
-  const teacherUrl = page.url();
-  const roomPath = new URL(teacherUrl).pathname;
-  const studentLink = await page.getByLabel("Student link").inputValue();
-  const operationsBefore = await page
-    .getByText("Teacher notes are saved")
-    .innerText();
+  await expect(
+    page.locator(".room-intro__role", { hasText: "Student lesson" }),
+  ).toBeVisible();
+  const studentUrl = page.url();
+  const roomPath = new URL(studentUrl).pathname;
   const pageCount = context.pages().length;
 
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
-  await expect(page).toHaveURL(studentLink);
+  await page.getByRole("button", { name: "Teacher setup" }).click();
   expect(context.pages()).toHaveLength(pageCount);
   expect(new URL(page.url()).pathname).toBe(roomPath);
-  await expect(page.getByText("Student view", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Student view" }),
+    page.locator(".room-intro__role", { hasText: "Teacher setup" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Teacher setup" }),
   ).toHaveAttribute("aria-pressed", "true");
+  const teacherUrl = page.url();
+  const studentLink = await page.getByLabel("Student link").inputValue();
+  expect(studentLink).toBe(studentUrl);
+  await expect(
+    page.getByRole("heading", {
+      name: "What does your learner struggle with?",
+    }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Student lesson" }).click();
+  await expect(page).toHaveURL(studentUrl);
+  expect(context.pages()).toHaveLength(pageCount);
+  await expect(
+    page.locator(".room-intro__role", { hasText: "Student lesson" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Run my solution" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", {
-      name: "What does your learner struggle with?",
-    }),
-  ).toHaveCount(0);
   await expect(page.getByLabel("Student link")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Teacher view" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Teacher setup" }).click();
   await expect(page).toHaveURL(teacherUrl);
-  expect(context.pages()).toHaveLength(pageCount);
-  await expect(page.getByText("Teacher view", { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("heading", {
-      name: "What does your learner struggle with?",
-    }),
-  ).toBeVisible();
-  await expect(page.getByText(operationsBefore)).toBeVisible();
-  await expect(page.getByLabel("Student link")).toHaveValue(studentLink);
 });
 
 test("a separately opened learner capability cannot reveal teacher setup", async ({
@@ -89,11 +92,11 @@ test("a separately opened learner capability cannot reveal teacher setup", async
   const studentPage = await studentContext.newPage();
   await studentPage.goto(studentLink);
   await expect(
-    studentPage.getByText("Student view", { exact: true }),
+    studentPage.locator(".room-intro__role", { hasText: "Student lesson" }),
   ).toBeVisible();
   await expect(studentPage.getByLabel("Student link")).toHaveCount(0);
   await expect(
-    studentPage.getByRole("button", { name: "Teacher view" }),
+    studentPage.getByRole("button", { name: "Teacher setup" }),
   ).toHaveCount(0);
   await expect(
     studentPage.getByRole("heading", {

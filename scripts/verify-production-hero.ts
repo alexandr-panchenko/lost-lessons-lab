@@ -1,138 +1,115 @@
-import { mkdir } from "node:fs/promises";
-
 import { chromium } from "@playwright/test";
 
 const productionOrigin =
   process.env.PRODUCTION_URL ?? "https://lost-lessons-lab.sanocks.workers.dev";
-const captureEvidence = process.env.CAPTURE_EVIDENCE === "true";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({
   reducedMotion: "reduce",
   viewport: { height: 900, width: 1280 },
 });
-const consoleErrors: string[] = [];
 const attemptRequests: string[] = [];
-page.on("console", (message) => {
-  if (message.type() !== "error") return;
-  const text = message.text().toLowerCase();
-  let source = "unknown";
-  try {
-    const pathname = new URL(message.location().url).pathname;
-    source = /\/api\/rooms\/[^/]+\/media\//u.test(pathname)
-      ? "room-media"
-      : /\/api\/rooms\/[^/]+\/attempts$/u.test(pathname)
-        ? "room-attempts"
-        : pathname.startsWith("/assets/")
-          ? "client-asset"
-          : "application";
-  } catch {
-    // Keep the category opaque when the console message has no source URL.
-  }
-  const status = ["400", "401", "403", "404", "429", "500", "503"].find(
-    (candidate) => text.includes(candidate),
-  );
-  consoleErrors.push(`${source}:${status ?? "non-http"}`);
-});
+const consoleErrors: string[] = [];
 page.on("request", (request) => {
-  if (/\/api\/rooms\/[^/]+\/attempts$/u.test(new URL(request.url()).pathname)) {
+  if (/\/api\/rooms\/[^/]+\/attempts$/u.test(new URL(request.url()).pathname))
     attemptRequests.push(request.method());
-  }
+});
+page.on("console", (message) => {
+  if (message.type() === "error") consoleErrors.push("browser-console-error");
 });
 
 try {
   await page.goto(new URL("/judge", productionOrigin).toString(), {
     waitUntil: "domcontentloaded",
   });
-  await page.getByText("Prepared judge sample").waitFor();
+  await page.getByText("Live room connected", { exact: true }).waitFor();
   await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
-  await page
-    .getByText(/shared operations saved/u)
-    .waitFor({ state: "visible" });
-
-  await page.getByRole("button", { name: "Run my solution" }).click();
-  const wrongAnalysis = page.locator(".analysis-card").filter({
-    hasText: "Interpretation complete",
-  });
-  await wrongAnalysis.waitFor({ state: "visible", timeout: 30_000 });
-  await wrongAnalysis.getByText("0.34", { exact: true }).waitFor();
-  await wrongAnalysis.getByText("4.08 m", { exact: true }).waitFor();
-  await page
-    .getByRole("heading", { name: "Bridge too short" })
-    .waitFor({ timeout: 20_000 });
-  await page
-    .getByRole("heading", { name: "The World's Shortest Bridge" })
+    .locator(".room-intro__role", { hasText: "Student lesson" })
     .waitFor();
-
-  const requestsBeforeReplay = attemptRequests.length;
-  await page.getByRole("button", { name: "Replay" }).first().click();
-  await page.getByText("Result confirmed").first().waitFor();
-  if (attemptRequests.length !== requestsBeforeReplay) {
-    throw new Error("Production replay made a new analysis request");
-  }
-
-  await page.getByRole("button", { name: "Apply prepared correction" }).click();
+  await page.locator('[data-saved-strokes="0"]').waitFor();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
   await page
-    .getByRole("button", { name: "Run my solution" })
-    .waitFor({ state: "visible" });
-  await page
-    .getByRole("button", { name: "Run my solution" })
-    .click({ timeout: 15_000 });
+    .locator("[data-saved-strokes]")
+    .filter({ hasNotText: "0" })
+    .waitFor();
+  await page.getByRole("button", { name: "Run my solution" }).click();
 
-  const analyses = page.locator(".analysis-card").filter({
+  const completedAnalyses = page.locator(".analysis-card").filter({
     hasText: "Interpretation complete",
   });
-  await analyses.nth(1).waitFor({ state: "visible", timeout: 30_000 });
-  await analyses.nth(1).getByText("0.75", { exact: true }).waitFor();
-  await analyses.nth(1).getByText("9 m", { exact: true }).waitFor();
+  await completedAnalyses.first().waitFor({ timeout: 75_000 });
+  await completedAnalyses.first().getByText("0.34", { exact: true }).waitFor();
+  await completedAnalyses
+    .first()
+    .getByText("4.08 m", { exact: true })
+    .waitFor();
   await page
-    .getByRole("heading", { name: "Safe crossing" })
-    .waitFor({ timeout: 20_000 });
-  await page.getByRole("heading", { name: "Fixed It" }).waitFor();
-
-  if (captureEvidence) {
-    await mkdir("docs/evidence/m5", { recursive: true });
-    await page.locator(".feed").screenshot({
-      path: "docs/evidence/m5/hero-wrong-to-correct.png",
-    });
+    .getByRole("heading", { name: "The bridge fell short." })
+    .waitFor({ timeout: 30_000 });
+  const beforeSuccessText = await page.locator("main").innerText();
+  if (/0[.,]75|\b9\s*(?:m|meters?)\b/iu.test(beforeSuccessText)) {
+    throw new Error("The learner view disclosed the correct answer early");
   }
 
-  await page.getByRole("button", { name: "Teacher view" }).click();
+  await page.getByRole("button", { name: "Give me a hint" }).click();
+  await page.getByText(/What is one of four equal parts/u).waitFor();
+  const attemptsBeforeReplay = attemptRequests.length;
+  await page.getByRole("button", { name: "Replay" }).first().click();
+  await page
+    .locator(".simulation-stage--bridge")
+    .first()
+    .waitFor({ state: "visible" });
+  if (attemptRequests.length !== attemptsBeforeReplay)
+    throw new Error("Replay launched another GPT request");
+  await page
+    .locator(".simulation-card")
+    .first()
+    .getByRole("button", { name: "Skip to result" })
+    .click();
+
+  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("button", { name: "Load correct sample" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
+  await completedAnalyses.nth(1).waitFor({ timeout: 75_000 });
+  await completedAnalyses.nth(1).getByText("0.75", { exact: true }).waitFor();
+  await completedAnalyses.nth(1).getByText("9 m", { exact: true }).waitFor();
+  await page
+    .locator(".simulation-card")
+    .nth(1)
+    .getByRole("button", { name: "Skip to result" })
+    .click({ timeout: 30_000 });
+  await page
+    .getByText(/Each quarter is 3 meters\. Three quarters is 9 meters/u)
+    .waitFor();
+  await page.getByRole("heading", { name: "Fixed It" }).waitFor();
+
+  const attemptsBeforeCorrectReplay = attemptRequests.length;
+  await page
+    .locator(".simulation-card")
+    .nth(1)
+    .getByRole("button", { name: "Replay" })
+    .click();
+  if (attemptRequests.length !== attemptsBeforeCorrectReplay)
+    throw new Error("Correct Replay launched another GPT request");
+
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page
-    .getByRole("heading", { name: "Bridge too short" })
-    .waitFor({ timeout: 15_000 });
-  await page.getByRole("heading", { name: "Safe crossing" }).waitFor();
-  await page.getByRole("heading", { name: "Fixed It" }).waitFor();
-
+  await completedAnalyses.nth(1).waitFor({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Teacher setup" }).click();
   await page.getByRole("button", { name: "Reset current task" }).click();
-  await page.locator(".simulation-card").first().waitFor({ state: "detached" });
-  if (
-    (await page.locator(".analysis-card").count()) !== 0 ||
-    (await page.locator(".achievement-card").count()) !== 0
-  ) {
-    throw new Error("Production reset left attempt results in the feed");
-  }
-  await page.getByText(/shared operations saved/u).waitFor();
+  await page.locator(".analysis-card").first().waitFor({ state: "detached" });
+  await page.locator('[data-saved-strokes="0"]').waitFor();
 
-  if (attemptRequests.length !== 2) {
-    throw new Error("Production hero did not make exactly two AI requests");
-  }
-  if (consoleErrors.length > 0) {
-    throw new Error(
-      `Production hero emitted browser console categories: ${consoleErrors.join(",")}`,
-    );
-  }
-
+  if (attemptRequests.length !== 2)
+    throw new Error(`Expected two GPT attempts, saw ${attemptRequests.length}`);
+  if (consoleErrors.length > 0)
+    throw new Error("Production hero emitted a browser console error");
   console.info(
     JSON.stringify({
-      aiAttempts: attemptRequests.length,
-      correction: "0.75-and-9m",
+      aiAttempts: 2,
+      directStudentEntry: true,
       persistence: "reload-passed",
-      reset: "fixture-restored",
-      status: "production-hero-passed",
-      wrongInputs: "0.34-and-4.08m",
+      replay: "no-new-gpt-request",
+      reset: "empty-canvas-restored",
+      status: "production-final-bridge-hero-passed",
     }),
   );
 } finally {

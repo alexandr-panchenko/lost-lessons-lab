@@ -94,10 +94,6 @@ export function LearningFeed({
                 <span className="skill-badge">{event.payload.skillLabel}</span>
               </div>
               <blockquote>{event.payload.prompt}</blockquote>
-              <p className="task-readiness">
-                The task is shared with the learner. Their handwriting workspace
-                appears in the next room block.
-              </p>
             </article>
           );
         })}

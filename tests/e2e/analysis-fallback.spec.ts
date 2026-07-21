@@ -38,9 +38,7 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
   await page.goto("/");
   await drawStroke(page, "Teacher annotation", 0.25);
   await expect(page.locator('[data-saved-strokes="1"]')).toBeVisible();
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Student lesson" }).click();
 
   await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(

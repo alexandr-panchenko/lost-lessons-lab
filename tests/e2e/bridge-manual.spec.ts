@@ -10,12 +10,21 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
       apiRequests.push(request.url());
     }
   });
+  await page.route("**/api/rooms/*/attempts", (route) =>
+    route.fulfill({
+      body: JSON.stringify({ error: "ai_disabled", fallback: "manual" }),
+      contentType: "application/json",
+      status: 503,
+    }),
+  );
 
   await page.goto("/judge");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
   await expect(page.getByText("Your work is saved")).toBeVisible();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
+  await expect(
+    page.getByRole("button", { name: "Test this bridge" }),
+  ).toBeVisible();
 
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByLabel("Fraction as a decimal (optional)").fill("0.34");
@@ -37,7 +46,7 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   );
   await expect(wrongStage).toHaveAttribute(
     "data-simulation-events",
-    /sagging.*snapping.*peeling.*collision.*falling.*splash/u,
+    /sagging.*snapping.*peeling.*falling.*collision.*splash/u,
     { timeout: 15_000 },
   );
   await expect(page.getByText("Result ready")).toBeVisible({
@@ -52,7 +61,7 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
     ),
   ).toHaveCount(0);
   await expect(
-    page.getByText("The bridge was built from your answer: 4.08 m.", {
+    page.getByText("It was built from your answer: 4.08 m.", {
       exact: true,
     }),
   ).toBeVisible();
@@ -121,7 +130,7 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Fixed It" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Teacher view" }).click();
+  await page.getByRole("button", { name: "Teacher setup" }).click();
   await page.reload();
   await page
     .locator(".simulation-card")
@@ -136,7 +145,7 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   await expect(
     page.getByRole("heading", { name: "Safe crossing" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Student view" }).click();
+  await page.getByRole("button", { name: "Student lesson" }).click();
   await page
     .locator(".simulation-card")
     .first()
@@ -145,7 +154,7 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   await expect(
     page.getByRole("heading", { name: "The bridge fell short." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Teacher view" }).click();
+  await page.getByRole("button", { name: "Teacher setup" }).click();
 
   await page.getByRole("button", { name: "Reset current task" }).click();
   await expect(page.locator(".simulation-card")).toHaveCount(0);
@@ -158,10 +167,16 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
 test("manual bridge form rejects unsafe ranges without creating a run", async ({
   page,
 }) => {
+  await page.route("**/api/rooms/*/attempts", (route) =>
+    route.fulfill({
+      body: JSON.stringify({ error: "ai_disabled", fallback: "manual" }),
+      contentType: "application/json",
+      status: 503,
+    }),
+  );
   await page.goto("/judge");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
   await page.getByLabel("Bridge length").fill("-2");
   await page.getByRole("button", { name: "Test this bridge" }).click();
   await expect(

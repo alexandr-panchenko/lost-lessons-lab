@@ -1,7 +1,6 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 
-import { judgePreparedWrongOperations } from "../../../fixtures/judge-v1/fixture";
 import { WATER_PREPARED_OPERATIONS } from "../../../fixtures/water/packs";
 import { SPEED_PREPARED_OPERATIONS } from "../../../fixtures/speed/packs";
 import { STRUCTURE_PREPARED_OPERATIONS } from "../../../fixtures/structure/packs";
@@ -32,16 +31,13 @@ export function registerResetRoutes(app: Hono<AppBindings>): void {
     const result = await room.resetCurrentTask({
       capability,
       idempotencyKey: request.data.idempotencyKey,
-      initialCanvasOperations:
-        current.fixtureId === "judge-v1"
-          ? judgePreparedWrongOperations
-          : current.fixtureId.startsWith("water-")
-            ? WATER_PREPARED_OPERATIONS
-            : current.fixtureId.startsWith("speed-")
-              ? SPEED_PREPARED_OPERATIONS
-              : current.fixtureId.startsWith("structure-")
-                ? STRUCTURE_PREPARED_OPERATIONS
-                : [],
+      initialCanvasOperations: current.fixtureId.startsWith("water-")
+        ? WATER_PREPARED_OPERATIONS
+        : current.fixtureId.startsWith("speed-")
+          ? SPEED_PREPARED_OPERATIONS
+          : current.fixtureId.startsWith("structure-")
+            ? STRUCTURE_PREPARED_OPERATIONS
+            : [],
     });
     if (!result.ok) {
       return context.json(

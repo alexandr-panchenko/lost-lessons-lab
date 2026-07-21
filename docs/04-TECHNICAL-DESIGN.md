@@ -607,7 +607,7 @@ When the learner presses **Run my solution**:
 5. the Worker validates media and asks the room Durable Object to atomically acquire the analysis lock and create the immutable attempt;
 6. the Worker stores visible PNG in R2;
 7. the R2 reference is attached to the attempt;
-8. analysis starts asynchronously;
+8. the Worker creates one Workflow instance using the persisted attempt ID;
 9. progress events reach the feed over WebSocket.
 
 If media storage fails, the analysis must not start. The local canvas remains available.
@@ -894,7 +894,7 @@ Initial policy:
 - best-effort `AbortController`;
 - template fallback after budget.
 
-The analysis starts under `ctx.waitUntil()` after the HTTP response acknowledges attempt capture. If live evaluation shows p90 above 20 seconds or timeout/fallback rate above roughly 5%, move only the execution transport to a Cloudflare Queue or Workflow. Preserve the API, room state machine, and UX.
+The analysis runs in a Cloudflare Workflow created only after the immutable attempt and private R2 object are persisted. The instance ID is the attempt ID. The Workflow reloads the image from R2, reports stages through the room Durable Object, and completes or fails the attempt idempotently. Browser or request disconnection does not cancel it; reload reconnects to the authoritative room state. The API, room state machine, and UX remain unchanged.
 
 ### Status events
 

@@ -6,6 +6,7 @@ import { registerRoomRoutes } from "./routes/rooms";
 import { registerResetRoutes } from "./routes/reset";
 
 export { RoomDurableObject } from "./room/RoomDurableObject";
+export { AnalysisWorkflow } from "./workflow/AnalysisWorkflow";
 
 const app = new Hono<{ Bindings: WorkerEnv }>();
 

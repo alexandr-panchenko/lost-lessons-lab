@@ -48,9 +48,10 @@ function statusForReason(reason: string): 401 | 403 | 409 | 429 {
   return 409;
 }
 
-async function runAnalysis(input: {
+export async function runAnalysis(input: {
   attemptId: string;
   config: ReturnType<typeof parseAiConfiguration>;
+  fetchImpl?: typeof fetch;
   imageBase64: string;
   room: DurableObjectStub<
     import("../room/RoomDurableObject").RoomDurableObject
@@ -65,6 +66,7 @@ async function runAnalysis(input: {
     const structureFixture = structureFixtureById(input.fixtureId);
     const shared = {
       config: input.config,
+      ...(input.fetchImpl === undefined ? {} : { fetchImpl: input.fetchImpl }),
       imageBase64: input.imageBase64,
       onStage: async (stage: "reading" | "extracting" | "validating") => {
         await input.room.setAnalysisStatus(input.attemptId, stage);
@@ -221,7 +223,7 @@ async function runAnalysis(input: {
         usedRepair: false,
       });
     } catch {
-      input.room.releaseAttemptProcessingLock(input.attemptId);
+      await input.room.releaseAttemptProcessingLock(input.attemptId);
     }
     logAnalysisMetadata({
       attemptId: input.attemptId,
@@ -243,15 +245,16 @@ async function captureAttempt(
     return context.json({ error: "unauthorized" }, 401, ROOM_HEADERS);
   }
 
-  let config: ReturnType<typeof parseAiConfiguration>;
+  let aiEnabled: boolean;
   try {
-    config = parseAiConfiguration(
-      context.env as WorkerEnv & { OPENAI_API_KEY?: string },
-    );
+    aiEnabled =
+      parseAiConfiguration(
+        context.env as WorkerEnv & { OPENAI_API_KEY?: string },
+      ).AI_ENABLED === "true";
   } catch {
     return context.json({ error: "ai_configuration" }, 503, ROOM_HEADERS);
   }
-  if (config.AI_ENABLED !== "true") {
+  if (!aiEnabled) {
     return context.json(
       { error: "ai_disabled", fallback: "manual" },
       503,
@@ -340,20 +343,34 @@ async function captureAttempt(
       room,
       roomId: roomId.data,
     });
-    context.executionCtx.waitUntil(
-      runAnalysis({
+    await context.env.ANALYSIS_WORKFLOW.create({
+      id: attempt.id,
+      params: {
         attemptId: attempt.id,
-        config,
         fixtureId: snapshot.fixtureId,
-        imageBase64: upload.data.mediaBase64,
-        room,
+        r2Key,
         roomId: roomId.data,
-      }),
-    );
+      },
+    });
     return context.json({ attempt, duplicate: false }, 202, ROOM_HEADERS);
-  } catch {
+  } catch (reason) {
+    const mediaStorageFailure =
+      reason instanceof Error && reason.message === "media_storage";
+    try {
+      await room.failAiAttempt({
+        attemptId: begun.attempt.id,
+        category: mediaStorageFailure ? "media_storage" : "upstream",
+        latencyMs: 0,
+        usedRepair: false,
+      });
+    } catch {
+      await room.releaseAttemptProcessingLock(begun.attempt.id);
+    }
     return context.json(
-      { error: "media_storage", fallback: "manual" },
+      {
+        error: mediaStorageFailure ? "media_storage" : "analysis_start",
+        fallback: "manual",
+      },
       503,
       ROOM_HEADERS,
     );

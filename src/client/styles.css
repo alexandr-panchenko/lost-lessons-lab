@@ -63,7 +63,7 @@ input {
 }
 
 .room-page {
-  width: min(100% - 2rem, 64rem);
+  width: min(100% - 2rem, 72rem);
   min-height: 100vh;
   margin-inline: auto;
   padding-bottom: 3rem;
@@ -163,7 +163,7 @@ input {
   grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 0.7fr);
   gap: 0.8rem 2rem;
   align-items: end;
-  padding: clamp(2rem, 6vw, 4rem) 0 2rem;
+  padding: clamp(1.25rem, 3vw, 2rem) 0 1rem;
 }
 
 .room-intro__role,
@@ -182,11 +182,11 @@ input {
 }
 
 .room-intro h1 {
-  max-width: 12ch;
+  max-width: 18ch;
   margin: 0;
-  font-size: clamp(3rem, 8vw, 5.5rem);
-  line-height: 0.92;
-  letter-spacing: -0.06em;
+  font-size: clamp(2.7rem, 6vw, 4.25rem);
+  line-height: 0.96;
+  letter-spacing: -0.05em;
 }
 
 .room-intro > p:last-child {
@@ -281,6 +281,7 @@ button:disabled {
 }
 
 .feed-card--task {
+  padding: 1.25rem 1.5rem;
   border-color: #20628b;
   box-shadow: 0.35rem 0.35rem 0 #63b5cb;
 }
@@ -304,8 +305,8 @@ button:disabled {
 }
 
 blockquote {
-  margin: 1.5rem 0;
-  padding: 1.25rem;
+  margin: 1rem 0 0;
+  padding: 0.9rem 1rem;
   border-left: 0.4rem solid #e8ad42;
   background: #f5f8fb;
   font-size: clamp(1.05rem, 2.5vw, 1.3rem);
@@ -691,6 +692,19 @@ blockquote {
   justify-content: space-between;
   gap: 1rem;
   padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.canvas-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.canvas-primary-action {
+  min-width: 10.5rem;
+  box-shadow: 0.2rem 0.2rem 0 #e8ad42;
 }
 
 .canvas-card h2,

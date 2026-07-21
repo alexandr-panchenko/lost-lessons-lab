@@ -355,17 +355,14 @@ Implementation may combine:
 - `AI_ENABLED` kill switch;
 - OpenAI project spend/rate limits.
 
-### Queue/Workflow threshold
+### Durable Workflow decision
 
-Do not add Cloudflare Queue or Workflow by default.
-
-Move only the AI job if measured live evaluation shows:
-
-- p90 analysis time above 20 seconds; or
-- timeout/fallback rate above roughly 5% on the stable curated corpus; or
-- `waitUntil` completion becomes unreliable.
-
-The public API, room state, status events, and fallback must remain unchanged.
+The final bridge release candidate uses one Cloudflare Workflow instance per
+persisted AI attempt. Human review required deterministic completion beyond a
+request lifetime even though prior model latency was normally short. The
+Workflow ID is the attempt ID, reads the immutable PNG from private R2, and
+updates the authoritative room through idempotent Durable Object methods. The
+public API, room state, status events, and fallback remain unchanged.
 
 ### M6 measured execution decision
 
@@ -373,9 +370,9 @@ On 2026-07-21, the release-gate wrong and correct handwriting samples completed
 on their first `gpt-5.6-sol` responses in 5.16 seconds and 4.45 seconds. Earlier
 recorded production release samples were also below 9 seconds. The prepared
 judge sample remained exact, no repair was used, and no fallback was required.
-This is comfortably below the 20-second p90 trigger, so M6 keeps AI execution in
-the Worker and does not add Queue/Workflow failure surface. The configured total
-timeout remains 24 seconds, retry remains bounded to one, reasoning effort
+The final release-candidate requirement supersedes that earlier transport
+decision: AI now runs in a Workflow despite the healthy measured latency. The
+configured model timeout remains bounded, retry remains bounded to one, reasoning effort
 remains low, the input analysis edge remains 2048 pixels, and structured output
 remains capped at 1,400 tokens.
 
@@ -384,7 +381,7 @@ M6 recovery controls are source-controlled and testable:
 | Failure | Control and evidence target |
 |---|---|
 | AI disabled, timeout, invalid schema, refusal, network, or upstream status | Persist a terminal failure when an attempt exists and expose the template-specific manual form; unit AI fixtures and browser fallback tests cover the categories. |
-| Worker interruption during analysis | Bootstrap, submit, and Reset expire a lock older than the configured timeout plus a 30-second delivery grace; a late completion cannot replace terminal state. |
+| Request/browser interruption during analysis | The persisted Workflow continues independently; bootstrap reconnects to the attempt, and a delayed fake-model integration test proves completion after more than 30 seconds. |
 | R2 write or attachment failure | Delete any partial object, persist `media_storage`, and explicitly release the lock if terminal persistence also fails. |
 | Missing or unauthorized R2 read | Return a protected 404 or 401 without revealing the object key. |
 | WebSocket disconnect | Preserve optimistic operations, show queued state, reconnect, resume from sequence, and resend idempotently. |
@@ -497,6 +494,7 @@ Bindings:
 ```text
 ROOMS → RoomDurableObject
 MEDIA → private R2 bucket
+ANALYSIS_WORKFLOW → AnalysisWorkflow
 ```
 
 Do not add:
@@ -506,7 +504,7 @@ Do not add:
 - separate API Worker;
 - separate media origin;
 - external auth;
-- Queue/Workflow unless the measured threshold requires it.
+- Queue (the selected Workflow already provides durable AI execution).
 
 ## Durable Object platform registration
 

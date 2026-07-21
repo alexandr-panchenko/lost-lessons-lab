@@ -13,10 +13,10 @@ Implementation status is tracked in [`STATUS.md`](STATUS.md).
 ## 60–90 second judge path
 
 1. Open `/judge`; it creates a fresh real room and redirects to its unique address.
-2. Choose **Try the lesson as a student**; the same tab enters the real learner capability and places the task beside **Run my solution**.
+2. The same tab opens directly in **Student lesson** with an empty handwriting canvas. Choose **Load sample mistake**, then **Run my solution**.
 3. Watch GPT-5.6 show how it read the work and extract `4.08 m`.
-4. Let the bridge simulation run: the bridge is too short and the vehicle falls safely into a comic rescue area.
-5. Apply the prepared editable correction to `3/4 = 0.75`, submit again, and watch the successful crossing.
+4. Let the suspension bridge fail in stages: its cable snaps, the deck folds, the vehicle strikes the maintenance boat, and emergency pontoons return the driver safely to the moving river surface.
+5. Choose **Try again**, then use the secondary **Load correct sample** helper or write a correction yourself. Submit it and watch the stable crossing and repair payoff.
 6. Replay either run or reload the page to verify that the room feed persists.
 
 Expected visible result:
@@ -26,31 +26,9 @@ Expected visible result:
 - the corrected value produces a safe crossing and a progress achievement;
 - a teacher can annotate the learner's canvas in realtime without those marks entering the learner's submitted answer.
 
-The complete bridge slice starts `/judge` with editable student-layer handwriting, interprets both the wrong and corrected work through server-only GPT-5.6, and turns strictly validated values into persisted physics runs. Separate disaster and progress awards, replay, reload, and teacher-only reset complete the loop. Student-only PNGs remain private, failures return to an explicitly labeled manual form, the browser never receives an OpenAI key, and the model verdict never decides arithmetic truth.
+The complete bridge slice starts `/judge` with an empty student-layer handwriting canvas, interprets both the wrong and corrected work through server-only GPT-5.6, and turns strictly validated values into persisted physics runs. Separate disaster and progress awards, replay, reload, and teacher-only reset complete the loop. Student-only PNGs remain private, failures return to an explicitly labeled manual form, the browser never receives an OpenAI key, and the model verdict never decides arithmetic truth.
 
 See [`JUDGING.md`](JUDGING.md) for the final concise instructions.
-
-## Video
-
-An owner-ready 1:41.95 English-narrated production candidate has been built at
-`artifacts/submission/lost-lessons-lab-demo.mp4`, with an embedded caption track
-and matching `.srt` sidecar. The artifact is intentionally ignored by Git; its
-reproducible sources are `scripts/capture-submission-video.ts`,
-`scripts/build-submission-video.sh`, and `docs/evidence/m9/`. The public YouTube
-URL remains pending owner upload and incognito verification.
-
-To recapture the same package, install `ffmpeg`, `ffprobe`, and eSpeak NG, then
-run:
-
-```bash
-bun run capture:video:draft # two real production GPT-5.6 attempts
-bun run build:video:draft
-bun run verify:media
-```
-
-The verifier enforces the sub-three-minute duration, 1280×720 H.264/AAC format,
-embedded caption stream, thumbnail dimensions, required narration evidence, and
-common secret/capability patterns.
 
 ## Product
 
@@ -125,7 +103,7 @@ cp .env.example .dev.vars
 bun run dev
 ```
 
-Open <http://127.0.0.1:5173>. It immediately creates a guided teacher room. Use the separate student capability link or the one-tab preview to inspect learner visibility.
+Open <http://127.0.0.1:5173>. The root creates a guided teacher room; `/judge` creates a fresh room and opens its real student lesson in the same tab. The compact role control returns to teacher setup, where the separate collaboration link remains available.
 
 When later milestones are active, set these local-only values in `.dev.vars`:
 
@@ -191,6 +169,7 @@ React learning feed
 Cloudflare Worker + Hono
   ├─ static SPA assets and API
   ├─ server-side OpenAI Responses calls
+  ├─ durable per-attempt analysis Workflow
   ├─ private R2 media access
   └─ one SQLite-backed Durable Object per room
 ```
@@ -201,7 +180,7 @@ See [`docs/04-TECHNICAL-DESIGN.md`](docs/04-TECHNICAL-DESIGN.md).
 
 ## GPT-5.6 usage
 
-The production AI path uses the OpenAI Responses API with `gpt-5.6`, high-detail PNG input, `store: false`, low reasoning effort, and strict Structured Outputs. It permits at most one bounded repair or retry, stores visible attempt media in private R2, and emits staged room statuses while analysis runs asynchronously.
+The production AI path uses the OpenAI Responses API with `gpt-5.6`, high-detail PNG input, `store: false`, low reasoning effort, and strict Structured Outputs. It permits at most one bounded repair or retry. Each attempt and its private-R2 image are persisted before an idempotent Cloudflare Workflow performs analysis, so a browser disconnect does not cancel the work.
 
 GPT-5.6 performs genuinely multimodal work:
 
@@ -220,8 +199,8 @@ One primary Codex implementation session executed the frozen plan from
 [`CODEX-KICKOFF.md`](CODEX-KICKOFF.md). The session built the reproducible
 Cloudflare shell (`7c5b502`), persistent capability rooms (`0c39b42`), realtime
 layered canvas and bridge physics (`b76eede`), GPT-5.6 interpretation
-(`969f99d`), complete hero (`80d93aa`), three independently tested supporting
-families now hidden from public navigation (`c586be7`, `2a5ffbb`, `81af212`), reliability controls (`3c9afce`),
+(`969f99d`), complete hero (`80d93aa`), archived unapproved scenario experiments
+that remain excluded from the public product, reliability controls (`3c9afce`),
 accessibility polish (`b990abe`), and the release audit (`eef7c03`).
 
 At every milestone Codex updated [`STATUS.md`](STATUS.md), added automated tests,

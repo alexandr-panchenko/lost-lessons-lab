@@ -11,7 +11,6 @@ import {
 import { CanvasWorkspace } from "./canvas/CanvasWorkspace";
 import { rasterizeStudentAttempt } from "./canvas/student-raster";
 import { AnalysisCard } from "./feed/AnalysisCard";
-import { AnalysisSubmitPanel } from "./feed/AnalysisSubmitPanel";
 import { AchievementCard } from "./feed/AchievementCard";
 import { LearningFeed } from "./feed/LearningFeed";
 import {
@@ -23,15 +22,13 @@ import {
   type RoomLocation,
 } from "./room/room-client";
 import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
-import { ManualSpeedPanel } from "./simulation/ManualSpeedPanel";
-import { ManualStructurePanel } from "./simulation/ManualStructurePanel";
-import { ManualWaterPanel } from "./simulation/ManualWaterPanel";
 import type { CanvasOperation } from "../shared/canvas";
 import type { BridgeSimulationInputs } from "../shared/domain/bridge";
-import type { SpeedSimulationInputs } from "../shared/domain/speed";
-import type { StructureSimulationInputs } from "../shared/domain/structure";
-import type { WaterSimulationInputs } from "../shared/domain/water";
 import type { AnalysisRecord } from "../shared/analysis-types";
+import {
+  preparedBridgeCorrection,
+  preparedBridgeHandwriting,
+} from "../shared/judge-handwriting";
 import type {
   RoomBootstrap,
   SocketAuthenticatedMessage,
@@ -45,22 +42,58 @@ const BridgeSimulation = lazy(() =>
     default: module.BridgeSimulation,
   })),
 );
-const WaterSimulation = lazy(() =>
-  import("./simulation/WaterSimulation").then((module) => ({
-    default: module.WaterSimulation,
-  })),
-);
-const SpeedSimulation = lazy(() =>
-  import("./simulation/SpeedSimulation").then((module) => ({
-    default: module.SpeedSimulation,
-  })),
-);
-const StructureSimulation = lazy(() =>
-  import("./simulation/StructureSimulation").then((module) => ({
-    default: module.StructureSimulation,
-  })),
-);
 
+function roomViewStorageKey(roomId: string): string {
+  return `lost-lessons-room-views:${roomId}`;
+}
+
+function rememberRoomViews(
+  roomId: string,
+  views: { student: RoomLocation; teacher: RoomLocation },
+): void {
+  sessionStorage.setItem(roomViewStorageKey(roomId), JSON.stringify(views));
+}
+
+function restoreRoomViews(roomId: string): {
+  student: RoomLocation;
+  teacher: RoomLocation;
+} | null {
+  const value = sessionStorage.getItem(roomViewStorageKey(roomId));
+  if (value === null) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("student" in parsed) ||
+      !("teacher" in parsed)
+    )
+      return null;
+    const student = parsed.student;
+    const teacher = parsed.teacher;
+    if (
+      typeof student !== "object" ||
+      student === null ||
+      typeof teacher !== "object" ||
+      teacher === null ||
+      !("roomId" in student) ||
+      !("token" in student) ||
+      !("roomId" in teacher) ||
+      !("token" in teacher) ||
+      student.roomId !== roomId ||
+      teacher.roomId !== roomId ||
+      typeof student.token !== "string" ||
+      typeof teacher.token !== "string"
+    )
+      return null;
+    return {
+      student: { roomId, token: student.token },
+      teacher: { roomId, token: teacher.token },
+    };
+  } catch {
+    return null;
+  }
+}
 function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
   const merged = new Map(current.map((item) => [item.id, item]));
   for (const item of incoming) merged.set(item.id, item);
@@ -88,8 +121,10 @@ export function App() {
   const [pendingCount, setPendingCount] = useState(0);
   const [submittingAnalysis, setSubmittingAnalysis] = useState(false);
   const [retryAnalysisUpload, setRetryAnalysisUpload] = useState(false);
+  const [manualFallbackVisible, setManualFallbackVisible] = useState(false);
   const [readyAiRuns, setReadyAiRuns] = useState<Set<string>>(() => new Set());
   const [resetting, setResetting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingCommands = useRef(new Map<string, SocketAuthenticatedMessage>());
   const lastSeenSeq = useRef(0);
@@ -101,6 +136,17 @@ export function App() {
   const focusStudentTask = useRef(false);
   const launchAiRun = useCallback((attemptId: string) => {
     setReadyAiRuns((current) => new Set(current).add(attemptId));
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(`[data-attempt-run="${attemptId}"]`)
+        ?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+            ? "auto"
+            : "smooth",
+          block: "center",
+        });
+    }, 0);
   }, []);
 
   useEffect(() => {
@@ -120,6 +166,7 @@ export function App() {
       setPendingCount(0);
       setSubmittingAnalysis(false);
       setRetryAnalysisUpload(false);
+      setManualFallbackVisible(false);
       setReadyAiRuns(new Set());
       lastSeenSeq.current = 0;
       setRoomLocation(nextLocation);
@@ -409,9 +456,32 @@ export function App() {
               roomId: bootstrap.roomId,
               token: bootstrap.studentCapability,
             };
+            rememberRoomViews(bootstrap.roomId, {
+              student: viewLocations.current.student,
+              teacher: roomLocation,
+            });
+          }
+          if (
+            bootstrap.fixtureId === "judge-v1" &&
+            bootstrap.studentCapability !== undefined &&
+            new URLSearchParams(window.location.search).get("entry") === "judge"
+          ) {
+            const next = {
+              roomId: bootstrap.roomId,
+              token: bootstrap.studentCapability,
+            };
+            window.history.replaceState(
+              null,
+              "",
+              `/r/${bootstrap.roomId}#${new URLSearchParams({ token: next.token })}`,
+            );
+            setRoomLocation(next);
+            return;
           }
         } else {
           viewLocations.current.student = roomLocation;
+          const storedViews = restoreRoomViews(bootstrap.roomId);
+          if (storedViews !== null) viewLocations.current = storedViews;
         }
         lastSeenSeq.current = bootstrap.roomSeq;
         setRoom(bootstrap);
@@ -482,9 +552,6 @@ export function App() {
   const isTeacher = room.role === "teacher";
   const studentPerspective = room.role === "student";
   const activeLayer = studentPerspective ? "student" : "teacher";
-  const isWaterRoom = room.fixtureId.startsWith("water-");
-  const isSpeedRoom = room.fixtureId.startsWith("speed-");
-  const isStructureRoom = room.fixtureId.startsWith("structure-");
   const studentLink =
     isTeacher && room.studentCapability !== undefined
       ? `${window.location.origin}/r/${room.roomId}#token=${room.studentCapability}`
@@ -496,6 +563,13 @@ export function App() {
     (latest, record) =>
       record.layer === "student" ? Math.max(latest, record.seq) : latest,
     0,
+  );
+  const analysisActive = room.attempts.some(
+    (attempt) =>
+      "mode" in attempt &&
+      attempt.mode === "ai" &&
+      attempt.status !== "complete" &&
+      attempt.status !== "failed",
   );
 
   async function copyStudentLink(): Promise<void> {
@@ -551,60 +625,8 @@ export function App() {
     });
   }
 
-  function submitManualWaterAttempt(inputs: WaterSimulationInputs): void {
-    const idempotencyKey = crypto.randomUUID();
-    queueCommand(idempotencyKey, {
-      clientId: clientId.current,
-      payload: {
-        idempotencyKey,
-        inputs,
-        previewAsStudent: false,
-        sourceCanvasSeq: latestStudentSeq,
-        templateId: "water",
-      },
-      requestId: crypto.randomUUID(),
-      type: "attempt.manual-capture",
-      v: 1,
-    });
-  }
-
-  function submitManualSpeedAttempt(inputs: SpeedSimulationInputs): void {
-    const idempotencyKey = crypto.randomUUID();
-    queueCommand(idempotencyKey, {
-      clientId: clientId.current,
-      payload: {
-        idempotencyKey,
-        inputs,
-        previewAsStudent: false,
-        sourceCanvasSeq: latestStudentSeq,
-        templateId: "speed",
-      },
-      requestId: crypto.randomUUID(),
-      type: "attempt.manual-capture",
-      v: 1,
-    });
-  }
-
-  function submitManualStructureAttempt(
-    inputs: StructureSimulationInputs,
-  ): void {
-    const idempotencyKey = crypto.randomUUID();
-    queueCommand(idempotencyKey, {
-      clientId: clientId.current,
-      payload: {
-        idempotencyKey,
-        inputs,
-        previewAsStudent: false,
-        sourceCanvasSeq: latestStudentSeq,
-        templateId: "structure",
-      },
-      requestId: crypto.randomUUID(),
-      type: "attempt.manual-capture",
-      v: 1,
-    });
-  }
-
   function tryBridgeAgain(): void {
+    setRetrying(true);
     document.querySelector(".canvas-card")?.scrollIntoView({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? "auto"
@@ -613,11 +635,21 @@ export function App() {
     });
   }
 
+  function loadBridgeSample(variant: "correct" | "wrong"): void {
+    const prefix = `${variant}-${crypto.randomUUID()}`;
+    const operations =
+      variant === "correct"
+        ? preparedBridgeCorrection(prefix)
+        : preparedBridgeHandwriting("wrong", prefix);
+    for (const operation of operations) sendCanvasOperation(operation);
+  }
+
   async function submitHandwritingAttempt(): Promise<void> {
     if (roomLocation === null || room === null || pendingCount > 0) return;
     setCommandError("");
     setSubmittingAnalysis(true);
     setRetryAnalysisUpload(false);
+    setManualFallbackVisible(false);
     try {
       const raster = await rasterizeStudentAttempt(
         room.canvasOperations,
@@ -645,13 +677,10 @@ export function App() {
     } catch (reason) {
       setSubmittingAnalysis(false);
       const code = reason instanceof Error ? reason.message : "analysis_failed";
-      const manualControls = isWaterRoom
-        ? "water"
-        : isSpeedRoom
-          ? "motion"
-          : isStructureRoom
-            ? "load"
-            : "bridge";
+      setManualFallbackVisible(
+        !code.includes("canvas") && !code.includes("student layer"),
+      );
+      const manualControls = "bridge";
       setRetryAnalysisUpload(
         code !== "ai_disabled" &&
           code !== "ai_rate_limited" &&
@@ -681,6 +710,7 @@ export function App() {
       setReadyAiRuns(new Set());
       setSubmittingAnalysis(false);
       setRetryAnalysisUpload(false);
+      setManualFallbackVisible(false);
       pendingCommands.current.clear();
       setPendingCount(0);
       lastSeenSeq.current = reset.roomSeq;
@@ -718,20 +748,20 @@ export function App() {
             <div className="view-switcher" aria-label="Room view">
               <span>View</span>
               <button
-                aria-label="Teacher view"
+                aria-label="Teacher setup"
                 aria-pressed={isTeacher}
                 onClick={() => switchRoomView("teacher")}
                 type="button"
               >
-                Teacher
+                Teacher setup
               </button>
               <button
-                aria-label="Student view"
+                aria-label="Student lesson"
                 aria-pressed={studentPerspective}
                 onClick={() => switchRoomView("student")}
                 type="button"
               >
-                Student
+                Student lesson
               </button>
             </div>
           )}
@@ -770,31 +800,14 @@ export function App() {
 
       <section className="room-intro" aria-labelledby="room-title">
         <p className="room-intro__role">
-          {studentPerspective ? "Student view" : "Teacher view"}
+          {studentPerspective ? "Student lesson" : "Teacher setup"}
         </p>
-        <h1 id="room-title">Make the math move.</h1>
-        <p>
-          Write a real solution, see how it was interpreted, and let the numbers
-          control the physical result.
+        <h1 id="room-title">Your math controls the bridge.</h1>
+        <p>Write your solution, then watch what it builds.</p>
+        <p className="room-intro__next">
+          <strong>Teacher goal:</strong> help the learner see a fraction as
+          equal parts, then test their own measurement in the world.
         </p>
-        {isTeacher && canSwitchViews ? (
-          <div className="room-intro__next room-intro__launch">
-            <strong>See the lesson from the learner&apos;s side.</strong>
-            <button
-              className="primary-button primary-button--judge"
-              onClick={() => switchRoomView("student")}
-              type="button"
-            >
-              Try the lesson as a student
-            </button>
-            <span>Same room, real student access, no copied link.</span>
-          </div>
-        ) : (
-          <p className="room-intro__next">
-            <strong>Next:</strong> review the problem, then run the prepared
-            solution.
-          </p>
-        )}
       </section>
 
       <div
@@ -808,120 +821,87 @@ export function App() {
           events={room.events}
           studentPerspective={studentPerspective}
         />
-        {studentPerspective && (
-          <AnalysisSubmitPanel
-            disabled={
-              connection !== "connected" ||
-              room.attempts.some(
-                (attempt) =>
-                  "mode" in attempt &&
-                  attempt.mode === "ai" &&
-                  attempt.status !== "complete" &&
-                  attempt.status !== "failed",
-              )
-            }
-            onSubmit={() => void submitHandwritingAttempt()}
-            pendingOperations={pendingCount}
-            retryUpload={retryAnalysisUpload}
-            submitting={submittingAnalysis}
-            templateId={
-              isWaterRoom
-                ? "water"
-                : isSpeedRoom
-                  ? "speed"
-                  : isStructureRoom
-                    ? "structure"
-                    : "bridge"
-            }
-          />
-        )}
         <CanvasWorkspace
           activeLayer={activeLayer}
           connected={connection === "connected"}
-          onOperation={sendCanvasOperation}
-          preparedSample={
-            room.fixtureId === "judge-v1" ||
-            isWaterRoom ||
-            isSpeedRoom ||
-            isStructureRoom
+          {...(studentPerspective
+            ? {
+                onLoadDemoSample: () =>
+                  loadBridgeSample(
+                    retrying ||
+                      room.simulationRuns.some(
+                        (run) =>
+                          run.templateId === "bridge" &&
+                          !run.outcome.isMathematicallyCorrect,
+                      )
+                      ? "correct"
+                      : "wrong",
+                  ),
+              }
+            : {})}
+          demoSampleLabel={
+            retrying ||
+            room.simulationRuns.some(
+              (run) =>
+                run.templateId === "bridge" &&
+                !run.outcome.isMathematicallyCorrect,
+            )
+              ? "Load correct sample"
+              : "Load sample mistake"
           }
+          onOperation={sendCanvasOperation}
+          preparedSample={false}
+          {...(studentPerspective
+            ? {
+                primaryAction: {
+                  disabled:
+                    connection !== "connected" ||
+                    analysisActive ||
+                    pendingCount > 0 ||
+                    submittingAnalysis,
+                  label: submittingAnalysis
+                    ? "Preparing student work…"
+                    : retryAnalysisUpload
+                      ? "Retry upload"
+                      : "Run my solution",
+                  onClick: () => void submitHandwritingAttempt(),
+                },
+              }
+            : {})}
           records={room.canvasOperations}
           roomSeq={room.roomSeq}
         />
-        {studentPerspective ? (
-          <>
-            {isStructureRoom ? (
-              <ManualStructurePanel
-                disabled={
-                  connection !== "connected" ||
-                  room.attempts.some(
-                    (attempt) =>
-                      "mode" in attempt &&
-                      attempt.mode === "ai" &&
-                      attempt.status !== "complete" &&
-                      attempt.status !== "failed",
-                  )
-                }
-                onSubmit={submitManualStructureAttempt}
-                pendingOperations={pendingCount}
-              />
-            ) : isSpeedRoom ? (
-              <ManualSpeedPanel
-                disabled={
-                  connection !== "connected" ||
-                  room.attempts.some(
-                    (attempt) =>
-                      "mode" in attempt &&
-                      attempt.mode === "ai" &&
-                      attempt.status !== "complete" &&
-                      attempt.status !== "failed",
-                  )
-                }
-                onSubmit={submitManualSpeedAttempt}
-                pendingOperations={pendingCount}
-              />
-            ) : isWaterRoom ? (
-              <ManualWaterPanel
-                disabled={
-                  connection !== "connected" ||
-                  room.attempts.some(
-                    (attempt) =>
-                      "mode" in attempt &&
-                      attempt.mode === "ai" &&
-                      attempt.status !== "complete" &&
-                      attempt.status !== "failed",
-                  )
-                }
-                onSubmit={submitManualWaterAttempt}
-                pendingOperations={pendingCount}
-              />
-            ) : (
-              <ManualBridgePanel
-                disabled={
-                  connection !== "connected" ||
-                  room.attempts.some(
-                    (attempt) =>
-                      "mode" in attempt &&
-                      attempt.mode === "ai" &&
-                      attempt.status !== "complete" &&
-                      attempt.status !== "failed",
-                  )
-                }
-                onSubmit={submitManualAttempt}
-                pendingOperations={pendingCount}
-              />
-            )}
-          </>
-        ) : (
+        {!studentPerspective && (
           <section className="teacher-note-card">
             <strong>Teacher annotation mode</strong>
             <p>
               Dashed teacher marks are shared live but excluded from every
-              learner attempt. Choose Student view to enter the real learner
+              learner attempt. Choose Student lesson to enter the real learner
               workspace in this tab.
             </p>
           </section>
         )}
+        {studentPerspective && pendingCount > 0 && (
+          <p className="inline-status" role="status">
+            Saving the latest stroke before capture…
+          </p>
+        )}
+        {studentPerspective && commandError !== "" && (
+          <p className="command-error" role="alert">
+            {commandError}
+          </p>
+        )}
+        {studentPerspective &&
+          (manualFallbackVisible ||
+            room.analyses.some(
+              (analysis) => analysis.failureCategory !== null,
+            )) && (
+            <ManualBridgePanel
+              disabled={connection !== "connected"}
+              onSubmit={submitManualAttempt}
+              pendingOperations={pendingCount}
+            />
+          )}
         {room.attempts
           .filter((attempt) => "mode" in attempt && attempt.mode === "ai")
           .map((attempt) =>
@@ -969,24 +949,6 @@ export function App() {
                     studentPerspective={studentPerspective}
                   />
                 )}
-                {run.templateId === "water" && (
-                  <WaterSimulation
-                    run={run}
-                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
-                  />
-                )}
-                {run.templateId === "speed" && (
-                  <SpeedSimulation
-                    run={run}
-                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
-                  />
-                )}
-                {run.templateId === "structure" && (
-                  <StructureSimulation
-                    run={run}
-                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
-                  />
-                )}
               </Suspense>
               {achievement !== undefined && (
                 <AchievementCard award={achievement} />
@@ -1021,9 +983,11 @@ export function App() {
         </section>
       )}
 
-      <p className="command-error" role="alert">
-        {commandError}
-      </p>
+      {!studentPerspective && (
+        <p className="command-error" role="alert">
+          {commandError}
+        </p>
+      )}
       <footer className="room-footer">
         <p>
           Do not include names or personal information. Review every AI

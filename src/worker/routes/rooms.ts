@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   bridgeRoomFixture,
   JUDGE_FIXTURE_ID,
-  judgePreparedWrongOperations,
 } from "../../../fixtures/judge-v1/fixture";
 import {
   DEFAULT_WATER_FIXTURE,
@@ -88,7 +87,7 @@ function fixtureEvents(
       payload: {
         fixtureLabel:
           fixture === "judge"
-            ? bridgeRoomFixture.fixtureLabel
+            ? "Bridge lesson"
             : fixture === "water"
               ? selected.fixtureLabel
               : fixture === "speed"
@@ -172,21 +171,19 @@ async function createRoom(
       teacherCapabilityHash,
     },
     fixtureEvents(createdAt, fixture),
-    fixture === "judge"
-      ? judgePreparedWrongOperations
-      : fixture === "water"
-        ? WATER_PREPARED_OPERATIONS
-        : fixture === "speed"
-          ? SPEED_PREPARED_OPERATIONS
-          : fixture === "structure"
-            ? STRUCTURE_PREPARED_OPERATIONS
-            : [],
+    fixture === "water"
+      ? WATER_PREPARED_OPERATIONS
+      : fixture === "speed"
+        ? SPEED_PREPARED_OPERATIONS
+        : fixture === "structure"
+          ? STRUCTURE_PREPARED_OPERATIONS
+          : [],
   );
 
   return new Response(null, {
     headers: {
       ...ROOM_HEADERS,
-      Location: `/r/${roomId}#token=${teacherCapability}`,
+      Location: `/r/${roomId}${fixture === "judge" ? "?entry=judge" : ""}#token=${teacherCapability}`,
     },
     status: 302,
   });

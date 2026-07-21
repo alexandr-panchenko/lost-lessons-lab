@@ -55,11 +55,9 @@ async function reset(
 }
 
 describe("task reset", () => {
-  it("is teacher-only and restores the prepared judge task in the same room", async () => {
+  it("is teacher-only and restores an empty judge task in the same room", async () => {
     const created = await createJudgeRoom();
-    const sourceCanvasSeq = Math.max(
-      ...created.teacher.canvasOperations.map((record) => record.seq),
-    );
+    const sourceCanvasSeq = 0;
     const room = env.ROOMS.getByName(created.roomId);
     const begun = await room.beginAiAttempt({
       authorId: "student-reset-test",
@@ -117,14 +115,7 @@ describe("task reset", () => {
     expect(restored.analyses).toEqual([]);
     expect(restored.simulationRuns).toEqual([]);
     expect(restored.achievements).toEqual([]);
-    expect(restored.canvasOperations).toHaveLength(
-      created.teacher.canvasOperations.length,
-    );
-    expect(
-      restored.canvasOperations.every(
-        (record) => record.layer === "student" && record.seq > sourceCanvasSeq,
-      ),
-    ).toBe(true);
+    expect(restored.canvasOperations).toEqual([]);
 
     const deletedMedia = await exports.default.fetch(
       `https://example.test/api/rooms/${created.roomId}/media/${mediaId}`,

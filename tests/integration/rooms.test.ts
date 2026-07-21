@@ -58,7 +58,7 @@ describe("persistent guided rooms", () => {
     expect(first.token).not.toBe(second.token);
   });
 
-  it("prepares ordinary editable student ink only in judge rooms", async () => {
+  it("opens judge and ordinary rooms with an empty editable canvas", async () => {
     const judgeCreated = await createRoom("/judge");
     const judge = RoomBootstrapSchema.parse(
       await (await bootstrap(judgeCreated.roomId, judgeCreated.token)).json(),
@@ -70,15 +70,7 @@ describe("persistent guided rooms", () => {
       ).json(),
     );
 
-    expect(judge.canvasOperations.length).toBeGreaterThan(10);
-    expect(
-      judge.canvasOperations.every(
-        (record) =>
-          record.layer === "student" &&
-          record.operation.operation === "stroke.add" &&
-          record.authorId === "judge-fixture",
-      ),
-    ).toBe(true);
+    expect(judge.canvasOperations).toEqual([]);
     expect(ordinary.canvasOperations).toEqual([]);
   });
 

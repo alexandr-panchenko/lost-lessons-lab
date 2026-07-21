@@ -21,8 +21,15 @@ type Tool = "pen" | "highlighter" | "eraser";
 type CanvasWorkspaceProps = {
   activeLayer: DrawableCanvasLayer;
   connected: boolean;
+  demoSampleLabel?: string;
+  onLoadDemoSample?: () => void;
   onOperation: (operation: CanvasOperation) => void;
   preparedSample: boolean;
+  primaryAction?: {
+    disabled: boolean;
+    label: string;
+    onClick: () => void;
+  };
   records: CanvasOperationRecord[];
   roomSeq: number;
 };
@@ -32,8 +39,11 @@ const WORKSPACE_ID = "bridge-workspace-v1";
 export function CanvasWorkspace({
   activeLayer,
   connected,
+  demoSampleLabel,
+  onLoadDemoSample,
   onOperation,
   preparedSample,
+  primaryAction,
   records,
   roomSeq,
 }: CanvasWorkspaceProps) {
@@ -239,9 +249,21 @@ export function CanvasWorkspace({
           </p>
           <h2 id="canvas-title">Work it out by hand</h2>
         </div>
-        <span className={`layer-badge layer-badge--${activeLayer}`}>
-          {activeLayer === "teacher" ? "Teacher ink" : "Student ink"}
-        </span>
+        <div className="canvas-card__actions">
+          <span className={`layer-badge layer-badge--${activeLayer}`}>
+            {activeLayer === "teacher" ? "Teacher ink" : "Student ink"}
+          </span>
+          {primaryAction !== undefined && (
+            <button
+              className="primary-button canvas-primary-action"
+              disabled={primaryAction.disabled}
+              onClick={primaryAction.onClick}
+              type="button"
+            >
+              {primaryAction.label}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="canvas-toolbar" role="toolbar" aria-label="Drawing tools">
@@ -277,6 +299,15 @@ export function CanvasWorkspace({
         >
           Clear {activeLayer} layer
         </button>
+        {activeLayer === "student" && onLoadDemoSample !== undefined && (
+          <button
+            className="tool-button tool-button--sample"
+            onClick={onLoadDemoSample}
+            type="button"
+          >
+            {demoSampleLabel ?? "Load sample mistake"}
+          </button>
+        )}
       </div>
 
       <canvas

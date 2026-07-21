@@ -12,9 +12,6 @@ for (const viewport of viewports) {
   }) => {
     await page.setViewportSize(viewport);
     await page.goto("/judge");
-    await page
-      .getByRole("button", { name: "Try the lesson as a student" })
-      .click();
     await expect(page.getByLabel("Learning room feed")).toBeVisible();
     await expect(
       page.getByRole("toolbar", { name: "Drawing tools" }),
@@ -32,10 +29,17 @@ test("reduced motion preserves the complete catastrophe with fewer effects", asy
 }) => {
   test.setTimeout(35_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/rooms/*/attempts", (route) =>
+    route.fulfill({
+      body: JSON.stringify({ error: "ai_disabled", fallback: "manual" }),
+      contentType: "application/json",
+      status: 503,
+    }),
+  );
   await page.goto("/judge");
-  await page
-    .getByRole("button", { name: "Try the lesson as a student" })
-    .click();
+  await page.getByRole("button", { name: "Load sample mistake" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
+  await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Test this bridge" }).click();
   const stage = page.locator(".simulation-stage--bridge");
   await expect(stage).toHaveAttribute("data-simulation-events", /splash/u, {
@@ -45,11 +49,12 @@ test("reduced motion preserves the complete catastrophe with fewer effects", asy
     timeout: 25_000,
   });
   await expect(
-    page.getByText("The bridge was built from your answer: 4.08 m.", {
+    page.getByText("It was built from your answer: 4.08 m.", {
       exact: true,
     }),
   ).toBeVisible();
-  await expect(
-    page.getByText(/articulated bridge, vehicle tumble, moving water/u),
-  ).toBeVisible();
+  await expect(stage).toHaveAttribute(
+    "data-simulation-events",
+    /snapping.*falling.*collision.*splash.*aftermath/u,
+  );
 });
