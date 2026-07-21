@@ -1,0 +1,9 @@
+[install]
+# The lockfile already selects platform-specific prebuilt packages. Avoid host
+# toolchains changing a clean install by rebuilding trusted native dependencies.
+ignoreScripts = true
+
+[install.cache]
+# A release checkout must be reconstructed from registry integrity data rather
+# than inheriting a stale or partial global package cache from the host.
+disable = true
