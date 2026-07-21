@@ -6,6 +6,19 @@ import {
   type SocketServerMessage,
 } from "../../src/shared/protocol";
 
+async function waitFor<T extends SocketServerMessage["type"]>(
+  messages: SocketServerMessage[],
+  type: T,
+): Promise<Extract<SocketServerMessage, { type: T }>> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const match = messages.find((message) => message.type === type);
+    if (match !== undefined)
+      return match as Extract<SocketServerMessage, { type: T }>;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`Timed out waiting for ${type}`);
+}
+
 type CreatedRoom = {
   roomId: string;
   token: string;
@@ -144,7 +157,7 @@ describe("persistent guided rooms", () => {
         v: 1,
       }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await waitFor(messages, "room.snapshot");
     expect(messages.map((message) => message.type)).toEqual([
       "auth.accepted",
       "room.snapshot",
