@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b --pretty false && WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log vite build && bun run scripts/finalize-build.ts",
+    "audit:secrets": "bun run scripts/secret-audit.ts",
     "cf-typegen": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log wrangler types --strict-vars=false",
     "deploy": "bun run build && WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log wrangler deploy",
     "dev": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log vite",
@@ -12,6 +13,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "smoke:prod": "bun run scripts/smoke-prod.ts",
+    "smoke:security:prod": "bun run scripts/verify-production-security.ts",
     "smoke:ai:prod": "bun run scripts/verify-production-ai.ts",
     "smoke:hero:prod": "bun run scripts/verify-production-hero.ts",
     "smoke:water:prod": "bun run scripts/verify-production-water.ts",
@@ -24,7 +26,7 @@
     "test:live-ai": "vitest run --config vitest.live-ai.config.ts --reporter=verbose --disableConsoleIntercept",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "typecheck": "tsc -b --pretty false",
-    "validate": "bun run format:check && bun run lint && bun run typecheck && bun run test:unit && bun run test:integration && bun run build && bun run test:e2e"
+    "validate": "bun run format:check && bun run lint && bun run typecheck && bun run test:unit && bun run test:integration && bun run build && bun run audit:secrets && bun run test:e2e"
   },
   "dependencies": {
     "hono": "4.12.31",
