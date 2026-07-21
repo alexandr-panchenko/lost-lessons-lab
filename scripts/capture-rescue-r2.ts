@@ -48,6 +48,38 @@ async function clickPlaybackControl(name: "Pause" | "Resume"): Promise<void> {
   });
 }
 
+async function pauseWhenStageMatches(
+  attribute: "data-simulation-events" | "data-simulation-phase",
+  value: string,
+): Promise<void> {
+  await page.locator(".simulation-stage--bridge").evaluate(
+    (element, target) =>
+      new Promise<void>((resolve) => {
+        const check = () => {
+          if (
+            (element.getAttribute(target.attribute) ?? "").includes(
+              target.value,
+            )
+          ) {
+            const pause = Array.from(document.querySelectorAll("button")).find(
+              (button) => button.textContent?.trim() === "Pause",
+            );
+            if (!(pause instanceof HTMLButtonElement)) {
+              throw new Error("Pause control is unavailable during capture");
+            }
+            pause.click();
+            resolve();
+            return;
+          }
+          requestAnimationFrame(check);
+        };
+        check();
+      }),
+    { attribute, value },
+  );
+  await page.getByRole("button", { name: "Resume" }).waitFor();
+}
+
 try {
   await page.goto(new URL("/judge", reviewOrigin).toString(), {
     waitUntil: "domcontentloaded",
@@ -73,22 +105,14 @@ try {
   });
   await clickPlaybackControl("Resume");
 
-  await page
-    .locator('[data-simulation-events*="snapping"]')
-    .waitFor({ timeout: 20_000 });
-  await clickPlaybackControl("Pause");
-  await page.getByRole("button", { name: "Resume" }).waitFor();
+  await pauseWhenStageMatches("data-simulation-events", "peeling");
   await positionStage();
   await stage.screenshot({
     path: `${outputDirectory}/wrong-bridge-failure.png`,
   });
   await clickPlaybackControl("Resume");
 
-  await page
-    .locator('[data-simulation-phase="splash"]')
-    .waitFor({ timeout: 20_000 });
-  await clickPlaybackControl("Pause");
-  await page.getByRole("button", { name: "Resume" }).waitFor();
+  await pauseWhenStageMatches("data-simulation-phase", "splash");
   await positionStage();
   await stage.screenshot({
     path: `${outputDirectory}/wrong-bridge-water-impact.png`,
