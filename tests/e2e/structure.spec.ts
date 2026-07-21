@@ -8,7 +8,12 @@ test("load values drive underload, collapse, and stable structure scenes", async
     if (/\/api\/rooms\/[^/]+\/attempts$/u.test(new URL(request.url()).pathname))
       attemptRequests.push(request.url());
   });
-  await page.goto("/structure");
+  await page.goto("/");
+  const structureSkill = page.getByRole("link", {
+    name: "Structure and load",
+  });
+  await expect(structureSkill).toHaveAttribute("href", "/structure");
+  await structureSkill.click();
   await expect(
     page.getByRole("heading", { name: "Balance the cargo platform" }),
   ).toBeVisible();

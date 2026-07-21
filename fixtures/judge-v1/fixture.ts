@@ -19,6 +19,7 @@ export const bridgeRoomFixture = {
     "Proportions",
     "Water and volume",
     "Speed and collision",
+    "Structure and load",
   ],
   taskTitle: "Fractions and the bridge",
 } as const;

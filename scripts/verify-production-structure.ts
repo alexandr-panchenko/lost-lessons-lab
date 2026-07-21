@@ -41,7 +41,9 @@ try {
   await page
     .getByRole("heading", { name: "Platform load balanced" })
     .waitFor({ timeout: 20_000 });
-  await page.getByRole("heading", { name: "Load Balanced" }).waitFor();
+  await page
+    .getByRole("heading", { exact: true, name: "Load Balanced" })
+    .waitFor();
   await page.getByLabel("Final total load").fill("90");
   await page.getByRole("button", { name: "Run platform value" }).click();
   await page

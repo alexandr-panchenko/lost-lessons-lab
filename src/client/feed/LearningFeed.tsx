@@ -45,11 +45,16 @@ export function LearningFeed({
                   {event.payload.supportedSkills.map((skill) => (
                     <Fragment key={skill}>
                       {skill === "Water and volume" ||
-                      skill === "Speed and collision" ? (
+                      skill === "Speed and collision" ||
+                      skill === "Structure and load" ? (
                         <a
                           className="skill-chip"
                           href={
-                            skill === "Water and volume" ? "/water" : "/speed"
+                            skill === "Water and volume"
+                              ? "/water"
+                              : skill === "Speed and collision"
+                                ? "/speed"
+                                : "/structure"
                           }
                         >
                           {skill}
