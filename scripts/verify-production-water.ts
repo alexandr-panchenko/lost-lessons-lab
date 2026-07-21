@@ -33,6 +33,7 @@ try {
     hasText: "Interpretation complete",
   });
   await analysis.waitFor({ timeout: 30_000 });
+  await analysis.getByText(/Read by gpt-5\.6-sol/u).waitFor();
   const extractedValues = analysis.getByLabel("Extracted simulation values");
   await extractedValues.waitFor();
   const extractedText = (await extractedValues.innerText()).replaceAll(
