@@ -132,6 +132,9 @@ const analysisCard = page.locator(".analysis-card").filter({
 });
 await analysisCard.waitFor({ state: "visible", timeout: 15_000 });
 await analysisCard.getByText("4.08 m", { exact: true }).waitFor();
+await analysisCard
+  .getByRole("img", { name: "Student handwriting submitted for this attempt" })
+  .waitFor();
 if (process.env.CAPTURE_EVIDENCE === "true") {
   await mkdir("docs/evidence/m4", { recursive: true });
   await analysisCard.screenshot({
