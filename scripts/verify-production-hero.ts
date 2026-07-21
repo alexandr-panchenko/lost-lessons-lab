@@ -28,8 +28,7 @@ try {
   await page.locator('[data-saved-strokes="0"]').waitFor();
   await page.getByRole("button", { name: "Load sample mistake" }).click();
   await page
-    .locator("[data-saved-strokes]")
-    .filter({ hasNotText: "0" })
+    .locator('[data-saved-strokes]:not([data-saved-strokes="0"])')
     .waitFor();
   await page.getByRole("button", { name: "Run my solution" }).click();
 

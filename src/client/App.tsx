@@ -627,11 +627,13 @@ export function App() {
 
   function tryBridgeAgain(): void {
     setRetrying(true);
-    document.querySelector(".canvas-card")?.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "auto"
-        : "smooth",
-      block: "center",
+    requestAnimationFrame(() => {
+      document.querySelector(".canvas-card")?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "center",
+      });
     });
   }
 
@@ -724,6 +726,58 @@ export function App() {
       setResetting(false);
     }
   }
+
+  const canvasWorkspace = (
+    <CanvasWorkspace
+      activeLayer={activeLayer}
+      connected={connection === "connected"}
+      {...(studentPerspective
+        ? {
+            onLoadDemoSample: () =>
+              loadBridgeSample(
+                retrying ||
+                  room.simulationRuns.some(
+                    (run) =>
+                      run.templateId === "bridge" &&
+                      !run.outcome.isMathematicallyCorrect,
+                  )
+                  ? "correct"
+                  : "wrong",
+              ),
+          }
+        : {})}
+      demoSampleLabel={
+        retrying ||
+        room.simulationRuns.some(
+          (run) =>
+            run.templateId === "bridge" && !run.outcome.isMathematicallyCorrect,
+        )
+          ? "Load correct sample"
+          : "Load sample mistake"
+      }
+      onOperation={sendCanvasOperation}
+      preparedSample={false}
+      {...(studentPerspective
+        ? {
+            primaryAction: {
+              disabled:
+                connection !== "connected" ||
+                analysisActive ||
+                pendingCount > 0 ||
+                submittingAnalysis,
+              label: submittingAnalysis
+                ? "Preparing student work…"
+                : retryAnalysisUpload
+                  ? "Retry upload"
+                  : "Run my solution",
+              onClick: () => void submitHandwritingAttempt(),
+            },
+          }
+        : {})}
+      records={room.canvasOperations}
+      roomSeq={room.roomSeq}
+    />
+  );
 
   return (
     <main className="room-page">
@@ -821,56 +875,7 @@ export function App() {
           events={room.events}
           studentPerspective={studentPerspective}
         />
-        <CanvasWorkspace
-          activeLayer={activeLayer}
-          connected={connection === "connected"}
-          {...(studentPerspective
-            ? {
-                onLoadDemoSample: () =>
-                  loadBridgeSample(
-                    retrying ||
-                      room.simulationRuns.some(
-                        (run) =>
-                          run.templateId === "bridge" &&
-                          !run.outcome.isMathematicallyCorrect,
-                      )
-                      ? "correct"
-                      : "wrong",
-                  ),
-              }
-            : {})}
-          demoSampleLabel={
-            retrying ||
-            room.simulationRuns.some(
-              (run) =>
-                run.templateId === "bridge" &&
-                !run.outcome.isMathematicallyCorrect,
-            )
-              ? "Load correct sample"
-              : "Load sample mistake"
-          }
-          onOperation={sendCanvasOperation}
-          preparedSample={false}
-          {...(studentPerspective
-            ? {
-                primaryAction: {
-                  disabled:
-                    connection !== "connected" ||
-                    analysisActive ||
-                    pendingCount > 0 ||
-                    submittingAnalysis,
-                  label: submittingAnalysis
-                    ? "Preparing student work…"
-                    : retryAnalysisUpload
-                      ? "Retry upload"
-                      : "Run my solution",
-                  onClick: () => void submitHandwritingAttempt(),
-                },
-              }
-            : {})}
-          records={room.canvasOperations}
-          roomSeq={room.roomSeq}
-        />
+        {!retrying && canvasWorkspace}
         {!studentPerspective && (
           <section className="teacher-note-card">
             <strong>Teacher annotation mode</strong>
@@ -956,6 +961,7 @@ export function App() {
             </Fragment>
           );
         })}
+        {retrying && canvasWorkspace}
       </div>
 
       {isTeacher && studentLink !== null && (

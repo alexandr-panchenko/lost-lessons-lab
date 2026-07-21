@@ -87,9 +87,10 @@ export function BridgeSimulation({
     let steps = 0;
     let terminal: BridgeWorldStatus = "running";
     let priorPhase: BridgeVisualPhase = "deploying";
-    const wrongSceneRenderScale = run.outcome.isMathematicallyCorrect
-      ? 1
-      : 0.78;
+    // A consistent internal render scale keeps the large, CSS-upscaled hero
+    // stage smooth under software rendering and video capture without changing
+    // any physics, camera, or visible composition.
+    const sceneRenderScale = quality.lowDetail ? 0.64 : 0.78;
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -769,17 +770,6 @@ export function BridgeSimulation({
               alpha: life,
             });
           }
-          scene
-            .ellipse(
-              impact.x,
-              impact.y - Math.max(0, 42 - impactAge * 26),
-              Math.max(8, 74 - impactAge * 18),
-              Math.max(5, 94 - impactAge * 34),
-            )
-            .fill({
-              color: 0xdffbff,
-              alpha: Math.max(0, 0.72 - impactAge * 0.25),
-            });
         }
         for (let ripple = 0; ripple < 4; ripple += 1) {
           const age = Math.max(0, impactAge - ripple * 0.22);
@@ -894,11 +884,11 @@ export function BridgeSimulation({
         const stageHeight = host.clientWidth < 700 ? 500 : 620;
         const renderWidth = Math.max(
           320,
-          Math.round(host.clientWidth * wrongSceneRenderScale),
+          Math.round(host.clientWidth * sceneRenderScale),
         );
-        const renderHeight = Math.round(stageHeight * wrongSceneRenderScale);
+        const renderHeight = Math.round(stageHeight * sceneRenderScale);
         await app.init({
-          antialias: run.outcome.isMathematicallyCorrect && quality.antialias,
+          antialias: false,
           autoStart: false,
           backgroundColor: 0xaedee8,
           height: renderHeight,
@@ -918,8 +908,8 @@ export function BridgeSimulation({
         resizeObserver = new ResizeObserver(() => {
           const nextHeight = host.clientWidth < 700 ? 500 : 620;
           app.renderer.resize(
-            Math.max(320, Math.round(host.clientWidth * wrongSceneRenderScale)),
-            Math.round(nextHeight * wrongSceneRenderScale),
+            Math.max(320, Math.round(host.clientWidth * sceneRenderScale)),
+            Math.round(nextHeight * sceneRenderScale),
           );
           farScene.cacheAsTexture(false);
           terrainScene.cacheAsTexture(false);

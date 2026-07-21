@@ -46,7 +46,9 @@ async function recordManualRun(
   await page.getByRole("button", { name: "Test this bridge" }).click();
   const stage = page.locator(".simulation-stage--bridge").first();
   await stage.waitFor();
+  await stage.locator(".simulation-canvas--bridge").waitFor();
   await stage.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
 
   const performanceResult = await page.evaluate(async () => {
     const deltas: number[] = [];
@@ -70,20 +72,32 @@ async function recordManualRun(
   });
 
   if (variant === "wrong") {
-    await page.locator('[data-simulation-phase="collision"]').waitFor({
-      timeout: 20_000,
-    });
+    await page
+      .locator('.simulation-stage--bridge[data-simulation-events*="collision"]')
+      .waitFor({ timeout: 20_000 });
     await page.getByRole("button", { name: "Pause" }).click();
+    await page
+      .locator(".room-header")
+      .evaluate((element) => (element.style.visibility = "hidden"));
     await stage.screenshot({
       path: `${outputDirectory}/wrong-climax.png`,
     });
+    await page
+      .locator(".room-header")
+      .evaluate((element) => (element.style.visibility = ""));
     await page.getByRole("button", { name: "Resume" }).click();
   }
   await page.getByText("Result ready").waitFor({ timeout: 30_000 });
   if (variant === "correct") {
+    await page
+      .locator(".room-header")
+      .evaluate((element) => (element.style.visibility = "hidden"));
     await stage.screenshot({
       path: `${outputDirectory}/correct-climax.png`,
     });
+    await page
+      .locator(".room-header")
+      .evaluate((element) => (element.style.visibility = ""));
   }
   await page.waitForTimeout(2_000);
   const video = page.video();
@@ -124,6 +138,7 @@ async function captureRealHero(browserInstance: Browser): Promise<void> {
     .getByRole("heading", { name: "The bridge fell short." })
     .waitFor({ timeout: 35_000 });
   await page.getByRole("button", { name: "Try again" }).click();
+  await page.locator(".canvas-card").scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${outputDirectory}/retry-ui.png` });
   await page.getByRole("button", { name: "Load correct sample" }).click();
   await page.getByRole("button", { name: "Run my solution" }).click();
@@ -143,7 +158,9 @@ async function captureRealHero(browserInstance: Browser): Promise<void> {
 try {
   const wrongPerformance = await recordManualRun(browser, "wrong");
   const correctPerformance = await recordManualRun(browser, "correct");
-  await captureRealHero(browser);
+  if (process.env.CAPTURE_SIM_ONLY !== "true") {
+    await captureRealHero(browser);
+  }
   console.info(
     JSON.stringify({
       correctPerformance: {
