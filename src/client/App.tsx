@@ -136,17 +136,25 @@ export function App() {
   const focusStudentTask = useRef(false);
   const launchAiRun = useCallback((attemptId: string) => {
     setReadyAiRuns((current) => new Set(current).add(attemptId));
-    window.setTimeout(() => {
-      document
-        .querySelector<HTMLElement>(`[data-attempt-run="${attemptId}"]`)
-        ?.scrollIntoView({
+    let remainingFrames = 30;
+    const scrollWhenMounted = () => {
+      const target = document.querySelector<HTMLElement>(
+        `[data-attempt-run="${attemptId}"]`,
+      );
+      if (target !== null) {
+        target.scrollIntoView({
           behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
             .matches
             ? "auto"
             : "smooth",
           block: "center",
         });
-    }, 0);
+        return;
+      }
+      remainingFrames -= 1;
+      if (remainingFrames > 0) window.requestAnimationFrame(scrollWhenMounted);
+    };
+    window.requestAnimationFrame(scrollWhenMounted);
   }, []);
 
   useEffect(() => {
