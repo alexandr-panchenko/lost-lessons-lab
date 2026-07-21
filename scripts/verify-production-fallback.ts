@@ -12,7 +12,17 @@ const page = await browser.newPage({
 const consoleErrors: string[] = [];
 let injectedFailures = 0;
 page.on("console", (message) => {
-  if (message.type() === "error") consoleErrors.push(message.text());
+  if (message.type() !== "error") return;
+  let isInjectedAttemptFailure = false;
+  try {
+    isInjectedAttemptFailure =
+      /^\/api\/rooms\/[^/]+\/attempts$/u.test(
+        new URL(message.location().url).pathname,
+      ) && message.text().includes("503");
+  } catch {
+    // A console message without a URL cannot be tied to the injected response.
+  }
+  if (!isInjectedAttemptFailure) consoleErrors.push("unexpected_console_error");
 });
 
 try {
