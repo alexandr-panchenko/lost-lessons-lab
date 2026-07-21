@@ -1,0 +1,41 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      vars.PRODUCTION_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.5
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build and deploy the validated commit
+        run: bun run deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Smoke production
+        run: bun run smoke:prod
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}

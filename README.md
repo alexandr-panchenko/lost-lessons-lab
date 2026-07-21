@@ -4,8 +4,8 @@
 
 ## Live demo
 
-- Production: **not deployed yet** — Milestone 2 must add the URL here.
-- Direct judge route: **`/judge` after deployment**.
+- Production: **<https://lost-lessons-lab.sanocks.workers.dev>**.
+- Direct judge route: **<https://lost-lessons-lab.sanocks.workers.dev/judge>**.
 - No login, payment, or user-provided API key is permitted on the judge path.
 
 Implementation status is tracked in [`STATUS.md`](STATUS.md).
@@ -89,7 +89,7 @@ cp .env.example .dev.vars
 bun run dev
 ```
 
-Open <http://127.0.0.1:5173>. The page reports the status of `GET /api/health` from the same Cloudflare Worker runtime. The guided room is intentionally not implemented until M2.
+Open <http://127.0.0.1:5173>. It immediately creates a guided teacher room. Use the separate student capability link or the one-tab preview to inspect learner visibility.
 
 When later milestones are active, set these local-only values in `.dev.vars`:
 

@@ -21,87 +21,308 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-}
-
-.shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  padding: 2rem 1rem;
   background:
-    radial-gradient(
-      circle at 15% 15%,
-      rgb(247 187 77 / 24%),
-      transparent 28rem
-    ),
-    linear-gradient(165deg, #fffdf7 0%, #f1eadc 100%);
+    radial-gradient(circle at 10% 4%, rgb(247 187 77 / 22%), transparent 24rem),
+    #f6f1e7;
 }
 
-.shell__card {
-  width: min(100%, 46rem);
-  padding: clamp(1.5rem, 5vw, 4rem);
-  border: 2px solid #17365d;
-  border-radius: 1.5rem;
-  background: rgb(255 255 255 / 88%);
-  box-shadow: 0.75rem 0.75rem 0 #e8ad42;
+button,
+textarea,
+input {
+  font: inherit;
 }
 
-.shell__eyebrow {
-  margin: 0 0 0.5rem;
-  color: #9a4118;
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+button,
+a,
+textarea,
+input {
+  outline-offset: 3px;
 }
 
-h1 {
-  margin: 0;
-  font-size: clamp(2.4rem, 8vw, 5rem);
-  line-height: 0.95;
+.room-page {
+  width: min(100% - 2rem, 64rem);
+  min-height: 100vh;
+  margin-inline: auto;
+  padding-bottom: 3rem;
 }
 
-.shell__lede {
-  max-width: 38rem;
-  margin: 1.5rem 0;
-  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
-  line-height: 1.55;
-}
-
-.shell__status {
+.room-header {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  width: fit-content;
-  padding: 0.75rem 1rem;
-  border-radius: 999px;
-  background: #e8edf5;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #b8b1a5;
+}
+
+.brand {
+  color: #17365d;
+  font-size: 1.05rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.room-header__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #5d6572;
+  font-size: 0.85rem;
   font-weight: 700;
 }
 
-.status-dot {
-  width: 0.75rem;
-  height: 0.75rem;
+.connection::before {
+  width: 0.6rem;
+  height: 0.6rem;
   border: 2px solid currentColor;
   border-radius: 50%;
-  background: transparent;
+  content: "";
 }
 
-.status-dot--healthy {
+.connection--connected {
   color: #17683e;
+}
+
+.connection--connected::before {
   background: currentColor;
 }
 
-.status-dot--unavailable {
-  color: #a13b2a;
-  background: currentColor;
+.room-intro {
+  padding: clamp(2.5rem, 8vw, 5rem) 0 2rem;
 }
 
-.shell__note {
+.room-intro__role,
+.feed-card__label {
+  margin: 0 0 0.5rem;
+  color: #9a4118;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.room-intro h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(3rem, 10vw, 6.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+}
+
+.room-intro > p:last-child {
+  max-width: 42rem;
   margin: 1.5rem 0 0;
-  color: #4f5e73;
-  font-size: 0.95rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
   line-height: 1.5;
+}
+
+.feed {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.feed-card,
+.invite-card,
+.error-card {
+  padding: clamp(1.35rem, 4vw, 2.25rem);
+  border: 2px solid #17365d;
+  border-radius: 1.25rem;
+  background: #fffdf8;
+  box-shadow: 0.35rem 0.35rem 0 #d8c8aa;
+}
+
+.feed-card h2,
+.invite-card h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  line-height: 1.1;
+}
+
+.feed-card p,
+.invite-card p {
+  line-height: 1.55;
+}
+
+.feed-card--welcome {
+  color: #fffdf8;
+  background: #17365d;
+  box-shadow: 0.35rem 0.35rem 0 #e8ad42;
+}
+
+.feed-card--welcome .feed-card__label {
+  color: #ffd889;
+}
+
+.feed-card--teacher {
+  border-style: dashed;
+  background: #fff7e8;
+}
+
+.feed-card--task {
+  border-color: #20628b;
+  box-shadow: 0.35rem 0.35rem 0 #63b5cb;
+}
+
+.feed-card__heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.skill-badge {
+  max-width: 14rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #20628b;
+  border-radius: 999px;
+  color: #174e70;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+blockquote {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-left: 0.4rem solid #e8ad42;
+  background: #f5f8fb;
+  font-size: clamp(1.05rem, 2.5vw, 1.3rem);
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.task-readiness {
+  margin-bottom: 0;
+  color: #526176;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 1.25rem 0;
+}
+
+.skill-chip,
+.secondary-button,
+.primary-button {
+  min-height: 2.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.skill-chip,
+.secondary-button {
+  padding: 0.6rem 1rem;
+  border: 1px solid #17365d;
+  color: #17365d;
+  background: #fff;
+}
+
+.skill-chip:hover,
+.secondary-button:hover {
+  background: #e8edf5;
+}
+
+.primary-button {
+  padding: 0.75rem 1.25rem;
+  border: 2px solid #17365d;
+  color: #fff;
+  background: #17365d;
+  box-shadow: 0.2rem 0.2rem 0 #e8ad42;
+}
+
+.teacher-form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.teacher-form label,
+.invite-card label {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.teacher-form textarea,
+.invite-card input {
+  width: 100%;
+  border: 1px solid #78869a;
+  border-radius: 0.75rem;
+  color: #13233f;
+  background: #fff;
+}
+
+.teacher-form textarea {
+  min-height: 6rem;
+  padding: 0.8rem;
+  resize: vertical;
+}
+
+.inline-status {
+  min-height: 1.5rem;
+  margin-bottom: 0;
+  color: #17683e;
+  font-weight: 700;
+}
+
+.invite-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  border-color: #92501f;
+  box-shadow: 0.35rem 0.35rem 0 #e8ad42;
+}
+
+.invite-card__actions {
+  display: grid;
+  align-content: center;
+  gap: 0.55rem;
+}
+
+.invite-card input {
+  padding: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.loading-state,
+.error-card {
+  margin: 20vh auto 0;
+  text-align: center;
+}
+
+.room-footer {
+  padding: 2rem 0;
+  color: #5b6470;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+@media (max-width: 44rem) {
+  .room-header,
+  .room-header__controls,
+  .feed-card__heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .invite-card {
+    grid-template-columns: 1fr;
+  }
+
+  .room-intro h1 {
+    font-size: clamp(3rem, 17vw, 5rem);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

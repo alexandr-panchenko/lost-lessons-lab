@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -b --pretty false && WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log vite build && bun run scripts/finalize-build.ts",
     "cf-typegen": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log wrangler types --strict-vars=false",
-    "deploy": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log wrangler deploy",
+    "deploy": "bun run build && WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log wrangler deploy",
     "dev": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log vite",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

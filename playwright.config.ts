@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -7,7 +9,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: externalBaseURL ?? "http://127.0.0.1:5173",
     trace: "retain-on-failure",
   },
   projects: [
@@ -16,12 +18,16 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "bun run dev -- --host 127.0.0.1",
-    reuseExistingServer: !process.env.CI,
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 120_000,
-    url: "http://127.0.0.1:5173/api/health",
-  },
+  ...(externalBaseURL === undefined
+    ? {
+        webServer: {
+          command: "bun run dev -- --host 127.0.0.1",
+          reuseExistingServer: !process.env.CI,
+          stderr: "pipe",
+          stdout: "pipe",
+          timeout: 120_000,
+          url: "http://127.0.0.1:5173/api/health",
+        },
+      }
+    : {}),
 });

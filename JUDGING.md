@@ -2,7 +2,7 @@
 
 ## Demo
 
-- URL: **add production URL after Milestone 2**
+- URL: **<https://lost-lessons-lab.sanocks.workers.dev>**
 - Direct path: `/judge`
 - Login: **not required**
 - Credentials: **not required**

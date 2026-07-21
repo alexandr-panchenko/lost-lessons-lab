@@ -7,8 +7,8 @@ States: `not started`, `in progress`, `blocked`, `done`, `cut`.
 | Milestone | State | Last validation | Known issues | Next action | Commit |
 |---|---|---|---|---|---|
 | Design packet and scope freeze | done | Required files, links, UTF-8, code fences, license, and frozen-scope consistency reviewed on 2026-07-21 | None | Preserve frozen scope during implementation | `07d27b5` |
-| M1 — Repository and reproducible environment | done | Frozen install plus format, lint, typecheck, 2 unit, 2 Worker/DO integration, build, 2 Chromium E2E, diff, history, tracked-file, and final-bundle secret checks passed on 2026-07-21 | No product room behavior by design until M2 | Begin deployable guided room shell | `chore: establish reproducible Cloudflare application environment` |
-| M2 — Deployable room shell | not started | — | No production URL | Create Durable Object room shell, CI, and first deployment | — |
+| M1 — Repository and reproducible environment | done | Frozen install plus format, lint, typecheck, 2 unit, 2 Worker/DO integration, build, 2 Chromium E2E, diff, history, tracked-file, and final-bundle secret checks passed on 2026-07-21 | No product room behavior by design until M2 | Begin deployable guided room shell | `7c5b502` |
+| M2 — Deployable room shell | in progress | M1 baseline green on 2026-07-21 | No production URL | Create Durable Object room shell, CI, and first deployment | — |
 | M3 — Realtime canvas and deterministic bridge | not started | — | No application code | Implement room state, canvas operation log, and manual bridge simulation | — |
 | M4 — GPT-5.6 handwriting integration | not started | — | OpenAI secret required | Add Responses API, Structured Outputs, validation, and fallback | — |
 | M5 — Complete hero and judge flow | not started | — | Depends on M3–M4 | Complete wrong/correct retry, achievements, replay, and `/judge` | — |

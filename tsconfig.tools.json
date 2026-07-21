@@ -11,6 +11,7 @@
   },
   "include": [
     "eslint.config.js",
+    "fixtures",
     "playwright.config.ts",
     "scripts",
     "src/shared",

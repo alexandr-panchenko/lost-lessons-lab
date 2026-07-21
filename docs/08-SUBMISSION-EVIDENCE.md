@@ -27,13 +27,13 @@ Do not use:
 
 | Item | Value | Status |
 |---|---|---|
-| Production URL | pending | PENDING |
-| Judge URL | pending `/judge` | PENDING |
-| Repository URL | pending | PENDING |
+| Production URL | `https://lost-lessons-lab.sanocks.workers.dev` | PASS |
+| Judge URL | `https://lost-lessons-lab.sanocks.workers.dev/judge` | PASS for M2 room shell; full hero pending |
+| Repository URL | `https://github.com/alexandr-panchenko/lost-lessons-lab` | PASS |
 | Public video URL | pending | PENDING |
 | Submission commit | pending | PENDING |
 | Submission tag | `build-week-submission` pending | PENDING |
-| Cloudflare deployment/version | pending | PENDING |
+| Cloudflare deployment/version | M2 bootstrap `d5fc84fe-f6e8-4f66-b755-5c16a71c1dc4`; final M2 version pending | PENDING |
 | Representative Codex Session ID | store in private submission checklist; pending | PENDING |
 | OpenAI model ID observed in production | `gpt-5.6` planned; pending runtime evidence | PENDING |
 | License | `LICENSE`, Apache-2.0 | PASS for design packet only |
@@ -43,6 +43,7 @@ Do not use:
 | Milestone | Exact evidence | Verification | Status |
 |---|---|---|---|
 | M1 — reproducible environment | `package.json`; `bun.lock`; `wrangler.jsonc`; `.github/workflows/ci.yml`; `src/client/App.tsx`; `src/worker/index.ts`; `src/worker/room/RoomDurableObject.ts`; `tests/unit/environment.test.ts`; `tests/integration/worker.test.ts`; `tests/e2e/shell.spec.ts`; `scripts/finalize-build.ts` | On 2026-07-21, `bun install --frozen-lockfile` and every documented M1 command passed; `bun run validate` covered format, lint, strict types, 2 unit tests, 2 Cloudflare Worker/SQLite DO integration tests, production build, and 2 Chromium E2E tests. `git diff --check`, non-Markdown tracked/history scans, generated `.dev.vars` removal, actual-value artifact scan, and client-bundle scan passed. | PASS |
+| M2 — deployable room shell | `src/worker/routes/rooms.ts`; `src/worker/room/RoomDurableObject.ts`; `src/worker/security/capabilities.ts`; `src/shared/protocol.ts`; `fixtures/judge-v1/fixture.ts`; `src/client/room/`; `src/client/feed/`; `tests/unit/capabilities.test.ts`; `tests/integration/rooms.test.ts`; `tests/e2e/room-shell.spec.ts`; `scripts/smoke-prod.ts`; `.github/workflows/deploy.yml` | On 2026-07-21, `bun run validate` passed 5 unit, 6 Worker/SQLite DO integration, and 3 Chromium E2E tests. Production smoke passed isolated `/judge` creation, teacher/student filtering, invalid-capability rejection, and security headers at the recorded URL. Final production browser run, commit, and deployment version pending. | PENDING |
 
 ## Eligibility and submission matrix
 

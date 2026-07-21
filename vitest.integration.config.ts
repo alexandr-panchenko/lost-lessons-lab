@@ -4,7 +4,15 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      wrangler: { configPath: "./wrangler.jsonc" },
+      wrangler: {
+        configPath: "./wrangler.jsonc",
+      },
+      miniflare: {
+        bindings: {
+          OPENAI_API_KEY: "test-openai-key-unused-in-m2",
+          ROOM_TOKEN_PEPPER: "test-room-pepper-with-at-least-thirty-two-bytes",
+        },
+      },
     }),
   ],
   test: {

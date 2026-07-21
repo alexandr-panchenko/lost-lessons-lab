@@ -26,7 +26,7 @@ jobs:
       - name: Scan tracked source for common secret patterns
         shell: bash
         run: |
-          if git grep -nE '(sk-[A-Za-z0-9_-]{20,}|OPENAI_API_KEY=.+|CLOUDFLARE_API_TOKEN=.+)' -- . ':!*.md'; then
+          if git grep -nE '(sk-[A-Za-z0-9_-]{20,}|OPENAI_API_KEY=.+|CLOUDFLARE_API_TOKEN=.+)' -- . ':!*.md' ':!.github/workflows/ci.yml'; then
             echo "Potential secret found in tracked source."
             exit 1
           fi
