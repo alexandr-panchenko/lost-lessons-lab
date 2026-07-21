@@ -79,6 +79,29 @@ const speedTeacherResponse = await bootstrap(speedRoom.roomId, speedRoom.token);
 if (!speedTeacherResponse.ok) {
   throw new Error(`Speed bootstrap failed with ${speedTeacherResponse.status}`);
 }
+
+const structureRoom = await createRoom("/structure");
+const structureTeacherResponse = await bootstrap(
+  structureRoom.roomId,
+  structureRoom.token,
+);
+if (!structureTeacherResponse.ok) {
+  throw new Error(
+    `Structure bootstrap failed with ${structureTeacherResponse.status}`,
+  );
+}
+const structureTeacher = BootstrapSchema.parse(
+  await structureTeacherResponse.json(),
+);
+if (
+  structureTeacher.fixtureId !== "structure-platform-v1" ||
+  structureTeacher.canvasOperations.length < 5 ||
+  !structureTeacher.events.some(
+    (event) => event.type === "task.preview" && event.visibility === "all",
+  )
+) {
+  throw new Error("Production structure room is not a prepared real room.");
+}
 const speedTeacher = BootstrapSchema.parse(await speedTeacherResponse.json());
 if (
   speedTeacher.fixtureId !== "speed-shuttle-v1" ||

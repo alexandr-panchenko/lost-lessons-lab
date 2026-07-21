@@ -82,6 +82,19 @@ const GLYPHS: Record<string, Glyph> = {
       [0.05, 0.92],
     ],
   ],
+  "6": [
+    [
+      [0.9, 0.08],
+      [0.25, 0],
+      [0, 0.42],
+      [0.08, 0.88],
+      [0.3, 1],
+      [0.82, 1],
+      [1, 0.78],
+      [0.82, 0.55],
+      [0.12, 0.58],
+    ],
+  ],
   "7": [
     [
       [0, 0],
@@ -266,6 +279,20 @@ export function preparedSpeedHandwriting(
     prefix: `${prefix}-line-1`,
     step: 0.072,
     text: "8 x 3 = 24m",
+    width: 0.045,
+    x: 0.12,
+    y: 0.34,
+  });
+}
+
+export function preparedStructureHandwriting(
+  prefix = "structure-platform",
+): CanvasOperation[] {
+  return lineOperations({
+    height: 0.18,
+    prefix: `${prefix}-line-1`,
+    step: 0.072,
+    text: "12 x 5 = 60",
     width: 0.045,
     x: 0.12,
     y: 0.34,

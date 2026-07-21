@@ -9,7 +9,7 @@ export function AnalysisSubmitPanel({
   onSubmit: () => void;
   pendingOperations: number;
   submitting: boolean;
-  templateId: "bridge" | "water" | "speed";
+  templateId: "bridge" | "water" | "speed" | "structure";
 }) {
   return (
     <section
@@ -24,7 +24,9 @@ export function AnalysisSubmitPanel({
             ? "water"
             : templateId === "speed"
               ? "shuttle"
-              : "bridge"}
+              : templateId === "structure"
+                ? "platform"
+                : "bridge"}
         </h2>
         <p>
           Submit only the solid learner layer. The AI reads the handwriting;

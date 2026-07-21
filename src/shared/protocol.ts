@@ -19,6 +19,10 @@ import {
   SpeedOutcomeSchema,
   SpeedSimulationInputsSchema,
 } from "./domain/speed";
+import {
+  StructureOutcomeSchema,
+  StructureSimulationInputsSchema,
+} from "./domain/structure";
 
 export const RoomRoleSchema = z.enum(["teacher", "student"]);
 export type RoomRole = z.infer<typeof RoomRoleSchema>;
@@ -82,7 +86,12 @@ export const ManualAttemptSchema = z
     id: z.string().min(8).max(128),
     sourceCanvasSeq: z.number().int().nonnegative(),
     status: z.literal("completed"),
-    taskId: z.enum(["bridge-task-v1", "water-task-v1", "speed-task-v1"]),
+    taskId: z.enum([
+      "bridge-task-v1",
+      "water-task-v1",
+      "speed-task-v1",
+      "structure-task-v1",
+    ]),
   })
   .strict();
 export type ManualAttempt = z.infer<typeof ManualAttemptSchema>;
@@ -135,10 +144,25 @@ export const SpeedSimulationRunSchema = z
     templateVersion: z.literal(1),
   })
   .strict();
+export const StructureSimulationRunSchema = z
+  .object({
+    attemptId: z.string().min(8).max(128),
+    createdAt: z.string(),
+    id: z.string().min(8).max(128),
+    inputs: StructureSimulationInputsSchema,
+    outcome: StructureOutcomeSchema,
+    presentationVariant: z.literal("platform-fragments-v1"),
+    randomSeed: z.string().min(8).max(128),
+    roomSeq: z.number().int().positive(),
+    templateId: z.literal("structure"),
+    templateVersion: z.literal(1),
+  })
+  .strict();
 export const SimulationRunSchema = z.discriminatedUnion("templateId", [
   BridgeSimulationRunSchema,
   WaterSimulationRunSchema,
   SpeedSimulationRunSchema,
+  StructureSimulationRunSchema,
 ]);
 export type SimulationRun = z.infer<typeof SimulationRunSchema>;
 
@@ -223,6 +247,15 @@ export const SocketManualAttemptMessageSchema = z
           previewAsStudent: z.boolean().default(false),
           sourceCanvasSeq: z.number().int().nonnegative(),
           templateId: z.literal("speed"),
+        })
+        .strict(),
+      z
+        .object({
+          idempotencyKey: z.string().min(8).max(128),
+          inputs: StructureSimulationInputsSchema,
+          previewAsStudent: z.boolean().default(false),
+          sourceCanvasSeq: z.number().int().nonnegative(),
+          templateId: z.literal("structure"),
         })
         .strict(),
     ]),

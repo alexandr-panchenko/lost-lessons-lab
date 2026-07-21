@@ -24,10 +24,12 @@ import {
 } from "./room/room-client";
 import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
 import { ManualSpeedPanel } from "./simulation/ManualSpeedPanel";
+import { ManualStructurePanel } from "./simulation/ManualStructurePanel";
 import { ManualWaterPanel } from "./simulation/ManualWaterPanel";
 import type { CanvasOperation } from "../shared/canvas";
 import type { BridgeSimulationInputs } from "../shared/domain/bridge";
 import type { SpeedSimulationInputs } from "../shared/domain/speed";
+import type { StructureSimulationInputs } from "../shared/domain/structure";
 import type { WaterSimulationInputs } from "../shared/domain/water";
 import type { AnalysisRecord } from "../shared/analysis-types";
 import { preparedBridgeCorrection } from "../shared/judge-handwriting";
@@ -52,6 +54,11 @@ const WaterSimulation = lazy(() =>
 const SpeedSimulation = lazy(() =>
   import("./simulation/SpeedSimulation").then((module) => ({
     default: module.SpeedSimulation,
+  })),
+);
+const StructureSimulation = lazy(() =>
+  import("./simulation/StructureSimulation").then((module) => ({
+    default: module.StructureSimulation,
   })),
 );
 
@@ -444,6 +451,7 @@ export function App() {
   const activeLayer = studentPerspective ? "student" : "teacher";
   const isWaterRoom = room.fixtureId.startsWith("water-");
   const isSpeedRoom = room.fixtureId.startsWith("speed-");
+  const isStructureRoom = room.fixtureId.startsWith("structure-");
   const studentLink =
     isTeacher && room.studentCapability !== undefined
       ? `${window.location.origin}/r/${room.roomId}#token=${room.studentCapability}`
@@ -532,6 +540,25 @@ export function App() {
     });
   }
 
+  function submitManualStructureAttempt(
+    inputs: StructureSimulationInputs,
+  ): void {
+    const idempotencyKey = crypto.randomUUID();
+    queueCommand(idempotencyKey, {
+      clientId: clientId.current,
+      payload: {
+        idempotencyKey,
+        inputs,
+        previewAsStudent: isTeacher && previewStudent,
+        sourceCanvasSeq: latestStudentSeq,
+        templateId: "structure",
+      },
+      requestId: crypto.randomUUID(),
+      type: "attempt.manual-capture",
+      v: 1,
+    });
+  }
+
   function applyPreparedCorrection(): void {
     const prefix = "judge-correction-" + crypto.randomUUID();
     for (const operation of preparedBridgeCorrection(prefix)) {
@@ -581,7 +608,9 @@ export function App() {
         ? "water"
         : isSpeedRoom
           ? "motion"
-          : "bridge";
+          : isStructureRoom
+            ? "load"
+            : "bridge";
       setCommandError(
         code === "ai_disabled"
           ? `AI interpretation is disabled right now. Use the manual ${manualControls} controls below.`
@@ -715,7 +744,10 @@ export function App() {
           connected={connection === "connected"}
           onOperation={sendCanvasOperation}
           preparedSample={
-            room.fixtureId === "judge-v1" || isWaterRoom || isSpeedRoom
+            room.fixtureId === "judge-v1" ||
+            isWaterRoom ||
+            isSpeedRoom ||
+            isStructureRoom
           }
           records={room.canvasOperations}
           roomSeq={room.roomSeq}
@@ -737,10 +769,31 @@ export function App() {
               pendingOperations={pendingCount}
               submitting={submittingAnalysis}
               templateId={
-                isWaterRoom ? "water" : isSpeedRoom ? "speed" : "bridge"
+                isWaterRoom
+                  ? "water"
+                  : isSpeedRoom
+                    ? "speed"
+                    : isStructureRoom
+                      ? "structure"
+                      : "bridge"
               }
             />
-            {isSpeedRoom ? (
+            {isStructureRoom ? (
+              <ManualStructurePanel
+                disabled={
+                  connection !== "connected" ||
+                  room.attempts.some(
+                    (attempt) =>
+                      "mode" in attempt &&
+                      attempt.mode === "ai" &&
+                      attempt.status !== "complete" &&
+                      attempt.status !== "failed",
+                  )
+                }
+                onSubmit={submitManualStructureAttempt}
+                pendingOperations={pendingCount}
+              />
+            ) : isSpeedRoom ? (
               <ManualSpeedPanel
                 disabled={
                   connection !== "connected" ||
@@ -850,6 +903,12 @@ export function App() {
                 )}
                 {run.templateId === "speed" && (
                   <SpeedSimulation
+                    run={run}
+                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+                  />
+                )}
+                {run.templateId === "structure" && (
+                  <StructureSimulation
                     run={run}
                     sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
                   />

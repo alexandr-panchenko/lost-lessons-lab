@@ -134,7 +134,9 @@ export function AnalysisCard({
               ? "water"
               : attempt.taskId === "speed-task-v1"
                 ? "motion"
-                : "bridge"}{" "}
+                : attempt.taskId === "structure-task-v1"
+                  ? "load"
+                  : "bridge"}{" "}
             controls below.
           </strong>
           <p>
@@ -208,6 +210,28 @@ export function AnalysisCard({
                 </strong>
               </div>
             </section>
+          ) : "totalLoadKg" in result.scenarioInputs ? (
+            <section
+              className="analysis-values"
+              aria-label="Extracted simulation values"
+            >
+              <div>
+                <span>Item count</span>
+                <strong>{result.scenarioInputs.itemCount ?? "unclear"}</strong>
+              </div>
+              <div>
+                <span>Load per item</span>
+                <strong>
+                  {result.scenarioInputs.unitLoadKg ?? "unclear"} kg
+                </strong>
+              </div>
+              <div>
+                <span>Total load</span>
+                <strong>
+                  {result.scenarioInputs.totalLoadKg ?? "unclear"} kg
+                </strong>
+              </div>
+            </section>
           ) : (
             <section
               className="analysis-values"
@@ -264,7 +288,9 @@ export function AnalysisCard({
                     ? "water"
                     : attempt.taskId === "speed-task-v1"
                       ? "shuttle"
-                      : "bridge"}
+                      : attempt.taskId === "structure-task-v1"
+                        ? "platform"
+                        : "bridge"}
                 </button>
               </>
             ) : (

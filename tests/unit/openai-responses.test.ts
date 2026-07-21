@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   analyzeBridgeSolution,
   analyzeSpeedSolution,
+  analyzeStructureSolution,
   analyzeWaterSolution,
   buildOpenAiSolutionRequest,
   parseAiConfiguration,
 } from "../../src/worker/ai/openai-responses";
 import { DEFAULT_WATER_FIXTURE } from "../../fixtures/water/packs";
 import { DEFAULT_SPEED_FIXTURE } from "../../fixtures/speed/packs";
+import { DEFAULT_STRUCTURE_FIXTURE } from "../../fixtures/structure/packs";
 import { wrongBridgeAnalysis } from "../fixtures/openai/solution-results";
 
 const config = parseAiConfiguration({
@@ -47,6 +49,49 @@ function refusalResponse(): Response {
 }
 
 describe("GPT-5.6 Responses boundary", () => {
+  it("uses the strict structure schema and validates the shared load contract", async () => {
+    const structureAnalysis = {
+      confidence: 0.94,
+      finalAnswers: [{ name: "totalLoadKg", unit: "kg", value: 60 }],
+      firstError: null,
+      scenarioInputs: { itemCount: 12, totalLoadKg: 60, unitLoadKg: 5 },
+      schemaVersion: "solution-analysis.v1",
+      steps: [
+        {
+          normalizedExpression: "12 * 5 = 60",
+          regionId: "line-1",
+          status: "valid",
+          text: "12 × 5 = 60",
+        },
+      ],
+      studentFacingExplanation:
+        "Twelve crates at five kilograms each total 60 kilograms.",
+      transcription: "12 × 5 = 60",
+      verdict: "correct",
+    } as const;
+    const request = buildOpenAiSolutionRequest({
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+      structureFixture: DEFAULT_STRUCTURE_FIXTURE,
+      template: "structure",
+    });
+    expect(request.text.format.name).toBe("structure_solution_analysis_v1");
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      modelResponse(structureAnalysis),
+    );
+    const result = await analyzeStructureSolution({
+      config,
+      fetchImpl,
+      fixture: DEFAULT_STRUCTURE_FIXTURE,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      validated: { outcome: { resultClass: "structure_stable" } },
+    });
+  });
+
   it("uses the strict speed schema and validates the shared motion contract", async () => {
     const speedAnalysis = {
       confidence: 0.94,

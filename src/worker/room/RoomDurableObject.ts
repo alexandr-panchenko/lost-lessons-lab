@@ -16,6 +16,7 @@ import {
   AttemptMediaSchema,
   SolutionAnalysisSchema,
   SpeedSolutionAnalysisSchema,
+  StructureSolutionAnalysisSchema,
   WaterSolutionAnalysisSchema,
   type AiAttempt,
   type AnalysisRecord,
@@ -40,6 +41,10 @@ import {
   classifySpeedInput,
 } from "../../shared/domain/speed";
 import {
+  StructureSimulationInputsSchema,
+  classifyStructureInput,
+} from "../../shared/domain/structure";
+import {
   ManualAttemptSchema,
   RoomFeedEventSchema,
   SimulationRunSchema,
@@ -58,8 +63,10 @@ import type { WorkerEnv } from "../env";
 import { bridgeAchievement } from "../domain/achievements";
 import { waterAchievement } from "../domain/water-achievements";
 import { speedAchievement } from "../domain/speed-achievements";
+import { structureAchievement } from "../domain/structure-achievements";
 import { waterFixtureById } from "../../../fixtures/water/packs";
 import { speedFixtureById } from "../../../fixtures/speed/packs";
+import { structureFixtureById } from "../../../fixtures/structure/packs";
 import {
   constantTimeEqual,
   deriveStudentCapability,
@@ -225,6 +232,19 @@ const CompleteSpeedAiAttemptSchema = z
   })
   .strict();
 
+const CompleteStructureAiAttemptSchema = z
+  .object({
+    analysis: StructureSolutionAnalysisSchema,
+    attemptId: z.string().min(8).max(128),
+    disagreement: z.boolean(),
+    inputs: StructureSimulationInputsSchema,
+    latencyMs: z.number().int().nonnegative(),
+    modelId: z.string().min(1).max(80),
+    responseId: z.string().min(1).max(160),
+    usedRepair: z.boolean(),
+  })
+  .strict();
+
 export class RoomDurableObject extends DurableObject<WorkerEnv> {
   constructor(ctx: DurableObjectState, env: WorkerEnv) {
     super(ctx, env);
@@ -353,11 +373,13 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
 
     const createdAt = new Date().toISOString();
     const taskId =
-      speedFixtureById(meta.fixture_id) !== undefined
-        ? "speed-task-v1"
-        : waterFixtureById(meta.fixture_id) !== undefined
-          ? "water-task-v1"
-          : "bridge-task-v1";
+      structureFixtureById(meta.fixture_id) !== undefined
+        ? "structure-task-v1"
+        : speedFixtureById(meta.fixture_id) !== undefined
+          ? "speed-task-v1"
+          : waterFixtureById(meta.fixture_id) !== undefined
+            ? "water-task-v1"
+            : "bridge-task-v1";
     let roomSeq = 0;
     try {
       this.ctx.storage.transactionSync(() => {
@@ -737,6 +759,104 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       run.templateId !== "speed"
     ) {
       throw new Error("Completed speed analysis state was not persisted");
+    }
+    this.broadcast({
+      payload: { achievement, analysis, attempt, run },
+      type: "analysis.completed",
+      v: 1,
+    });
+    return { achievement, analysis, attempt, run };
+  }
+
+  completeStructureAiAttempt(
+    input: z.input<typeof CompleteStructureAiAttemptSchema>,
+  ): {
+    achievement: AchievementAward;
+    analysis: AnalysisRecord;
+    attempt: AiAttempt;
+    run: Extract<SimulationRun, { templateId: "structure" }>;
+  } {
+    const value = CompleteStructureAiAttemptSchema.parse(input);
+    const current = this.analysisAttemptById(value.attemptId);
+    const meta = this.roomMeta();
+    const fixture =
+      meta === null ? undefined : structureFixtureById(meta.fixture_id);
+    if (
+      current === null ||
+      current.media === null ||
+      current.taskId !== "structure-task-v1" ||
+      fixture === undefined
+    ) {
+      throw new Error(
+        "Structure analysis attempt, media, or fixture is missing",
+      );
+    }
+    if (current.status === "complete" || current.status === "failed") {
+      throw new Error("Structure analysis attempt is already terminal");
+    }
+    const outcome = classifyStructureInput(fixture.parameters, value.inputs);
+    const completedAt = new Date().toISOString();
+    const runId = `run_${crypto.randomUUID()}`;
+    const randomSeed = crypto.randomUUID();
+    let roomSeq = 0;
+    const achievement = structureAchievement({
+      attemptId: value.attemptId,
+      createdAt: completedAt,
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt("structure"),
+      outcome,
+      roomSeq: this.nextSequence(),
+    });
+    this.ctx.storage.transactionSync(() => {
+      roomSeq = this.nextSequence();
+      this.ctx.storage.sql.exec(
+        "UPDATE analysis_attempts SET status = 'complete', room_seq = ? WHERE id = ?",
+        roomSeq,
+        value.attemptId,
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT INTO analysis_results (
+          attempt_id, result_json, failure_category, disagreement, model_id,
+          response_id, latency_ms, used_repair, completed_at
+        ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+        value.attemptId,
+        JSON.stringify(value.analysis),
+        value.disagreement ? 1 : 0,
+        value.modelId,
+        value.responseId,
+        value.latencyMs,
+        value.usedRepair ? 1 : 0,
+        completedAt,
+      );
+      this.insertAchievement(achievement);
+      this.ctx.storage.sql.exec(
+        `INSERT INTO simulation_runs (
+          id, attempt_id, room_seq, template_id, template_version,
+          inputs_json, outcome_json, presentation_variant, random_seed, created_at
+        ) VALUES (?, ?, ?, 'structure', 1, ?, ?, 'platform-fragments-v1', ?, ?)`,
+        runId,
+        value.attemptId,
+        roomSeq,
+        JSON.stringify(value.inputs),
+        JSON.stringify(outcome),
+        randomSeed,
+        completedAt,
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+        roomSeq + 1,
+      );
+    });
+    this.releaseAttemptProcessingLock(value.attemptId);
+    const attempt = this.analysisAttemptById(value.attemptId);
+    const analysis = this.analysisForAttempt(value.attemptId);
+    const run = this.simulationRunForAttempt(value.attemptId);
+    if (
+      attempt === null ||
+      analysis === null ||
+      run === null ||
+      run.templateId !== "structure"
+    ) {
+      throw new Error("Completed structure analysis state was not persisted");
     }
     this.broadcast({
       payload: { achievement, analysis, attempt, run },
@@ -1210,6 +1330,10 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       { type: "attempt.manual-capture" }
     >,
   ): void {
+    if (message.payload.templateId === "structure") {
+      this.captureManualStructureAttempt(socket, attachment, message);
+      return;
+    }
     if (message.payload.templateId === "speed") {
       this.captureManualSpeedAttempt(socket, attachment, message);
       return;
@@ -1220,7 +1344,8 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     }
     if (
       waterFixtureById(this.roomMeta()?.fixture_id ?? "") !== undefined ||
-      speedFixtureById(this.roomMeta()?.fixture_id ?? "") !== undefined
+      speedFixtureById(this.roomMeta()?.fixture_id ?? "") !== undefined ||
+      structureFixtureById(this.roomMeta()?.fixture_id ?? "") !== undefined
     ) {
       this.rejectCommand(socket, message.requestId, "invalid_command");
       return;
@@ -1641,6 +1766,149 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     });
   }
 
+  private captureManualStructureAttempt(
+    socket: WebSocket,
+    attachment: SocketAttachment,
+    message: Extract<
+      SocketAuthenticatedMessage,
+      { type: "attempt.manual-capture" }
+    >,
+  ): void {
+    if (message.payload.templateId !== "structure") {
+      this.rejectCommand(socket, message.requestId, "invalid_command");
+      return;
+    }
+    const meta = this.roomMeta();
+    const fixture =
+      meta === null ? undefined : structureFixtureById(meta.fixture_id);
+    if (fixture === undefined) {
+      this.rejectCommand(socket, message.requestId, "invalid_command");
+      return;
+    }
+    if (attachment.role === "teacher" && !message.payload.previewAsStudent) {
+      this.rejectCommand(socket, message.requestId, "permission_denied");
+      return;
+    }
+    const duplicateRow = this.ctx.storage.sql
+      .exec<{ id: string }>(
+        "SELECT id FROM attempts WHERE idempotency_key = ?",
+        message.payload.idempotencyKey,
+      )
+      .toArray()[0];
+    if (duplicateRow !== undefined) {
+      const attempt = this.attemptsById([duplicateRow.id])[0];
+      const run = this.simulationRunForAttempt(duplicateRow.id);
+      const achievement = this.achievementForAttempt(duplicateRow.id);
+      if (attempt !== undefined && run !== null && achievement !== null) {
+        this.ack(
+          socket,
+          message.requestId,
+          message.payload.idempotencyKey,
+          run.roomSeq,
+          true,
+        );
+        this.send(socket, {
+          payload: { achievement, attempt, run },
+          type: "simulation.launch",
+          v: 1,
+        });
+      }
+      return;
+    }
+    if (!this.validStudentCutoff(message.payload.sourceCanvasSeq)) {
+      this.rejectCommand(socket, message.requestId, "stale_canvas_sequence");
+      return;
+    }
+    const outcome = classifyStructureInput(
+      fixture.parameters,
+      message.payload.inputs,
+    );
+    const attemptId = `at_${crypto.randomUUID()}`;
+    const runId = `run_${crypto.randomUUID()}`;
+    const createdAt = new Date().toISOString();
+    const randomSeed = crypto.randomUUID();
+    let roomSeq = 0;
+    const achievement = structureAchievement({
+      attemptId,
+      createdAt,
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt("structure"),
+      outcome,
+      roomSeq: this.nextSequence(),
+    });
+    if (!this.acquireAttemptProcessingLock(attemptId)) {
+      this.rejectCommand(socket, message.requestId, "attempt_in_progress");
+      return;
+    }
+    try {
+      this.ctx.storage.transactionSync(() => {
+        roomSeq = this.nextSequence();
+        this.ctx.storage.sql.exec(
+          `INSERT INTO attempts (
+            id, idempotency_key, task_id, author_id,
+            source_canvas_seq, status, created_at
+          ) VALUES (?, ?, 'structure-task-v1', ?, ?, 'completed', ?)`,
+          attemptId,
+          message.payload.idempotencyKey,
+          attachment.clientId,
+          message.payload.sourceCanvasSeq,
+          createdAt,
+        );
+        this.ctx.storage.sql.exec(
+          `INSERT INTO simulation_runs (
+            id, attempt_id, room_seq, template_id, template_version,
+            inputs_json, outcome_json, presentation_variant, random_seed, created_at
+          ) VALUES (?, ?, ?, 'structure', 1, ?, ?, 'platform-fragments-v1', ?, ?)`,
+          runId,
+          attemptId,
+          roomSeq,
+          JSON.stringify(message.payload.inputs),
+          JSON.stringify(outcome),
+          randomSeed,
+          createdAt,
+        );
+        this.insertAchievement(achievement);
+        this.ctx.storage.sql.exec(
+          "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+          roomSeq + 1,
+        );
+      });
+    } finally {
+      this.releaseAttemptProcessingLock(attemptId);
+    }
+    const attempt = ManualAttemptSchema.parse({
+      authorId: attachment.clientId,
+      createdAt,
+      id: attemptId,
+      sourceCanvasSeq: message.payload.sourceCanvasSeq,
+      status: "completed",
+      taskId: "structure-task-v1",
+    });
+    const run = SimulationRunSchema.parse({
+      attemptId,
+      createdAt,
+      id: runId,
+      inputs: message.payload.inputs,
+      outcome,
+      presentationVariant: "platform-fragments-v1",
+      randomSeed,
+      roomSeq,
+      templateId: "structure",
+      templateVersion: 1,
+    });
+    this.ack(
+      socket,
+      message.requestId,
+      message.payload.idempotencyKey,
+      roomSeq,
+      false,
+    );
+    this.broadcast({
+      payload: { achievement, attempt, run },
+      type: "simulation.launch",
+      v: 1,
+    });
+  }
+
   private allowedLayer(
     role: RoomRole,
     previewAsStudent: boolean,
@@ -2016,7 +2284,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
   }
 
   private hasPriorIncorrectAttempt(
-    templateId: "bridge" | "water" | "speed",
+    templateId: "bridge" | "water" | "speed" | "structure",
   ): boolean {
     return this.simulationRuns().some(
       (run) =>

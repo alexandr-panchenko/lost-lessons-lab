@@ -4,11 +4,13 @@ import { z } from "zod";
 import {
   analyzeBridgeSolution,
   analyzeSpeedSolution,
+  analyzeStructureSolution,
   analyzeWaterSolution,
   parseAiConfiguration,
 } from "../ai/openai-responses";
 import { waterFixtureById } from "../../../fixtures/water/packs";
 import { speedFixtureById } from "../../../fixtures/speed/packs";
+import { structureFixtureById } from "../../../fixtures/structure/packs";
 import type { WorkerEnv } from "../env";
 import { AttemptUploadSchema, validatePngUpload } from "../media/png";
 import { logAnalysisMetadata } from "../security/logging";
@@ -59,6 +61,7 @@ async function runAnalysis(input: {
   try {
     const waterFixture = waterFixtureById(input.fixtureId);
     const speedFixture = speedFixtureById(input.fixtureId);
+    const structureFixture = structureFixtureById(input.fixtureId);
     const shared = {
       config: input.config,
       imageBase64: input.imageBase64,
@@ -95,7 +98,36 @@ async function runAnalysis(input: {
         usedRepair: result.usedRepair,
       });
     };
-    if (speedFixture !== undefined) {
+    if (structureFixture !== undefined) {
+      const result = await analyzeStructureSolution({
+        ...shared,
+        fixture: structureFixture,
+      });
+      if (!result.ok) {
+        await recordFailure(result);
+        return;
+      }
+      await input.room.setAnalysisStatus(input.attemptId, "preparing");
+      await input.room.completeStructureAiAttempt({
+        analysis: result.validated.analysis,
+        attemptId: input.attemptId,
+        disagreement: result.validated.disagreement,
+        inputs: result.validated.inputs,
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        usedRepair: result.usedRepair,
+      });
+      logAnalysisMetadata({
+        attemptId: input.attemptId,
+        event: "analysis.completed",
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        roomHash: hashedRoom,
+        usedRepair: result.usedRepair,
+      });
+    } else if (speedFixture !== undefined) {
       const result = await analyzeSpeedSolution({
         ...shared,
         fixture: speedFixture,
