@@ -10,6 +10,10 @@ import {
   createWaterWorld,
   type WaterWorldStatus,
 } from "../../simulations/water/water-world";
+import {
+  chooseRenderQuality,
+  shouldForceRendererFailure,
+} from "../../simulations/core/render-quality";
 
 type WaterRun = Extract<SimulationRun, { templateId: "water" }>;
 
@@ -30,6 +34,14 @@ export function WaterSimulation({
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<WaterWorldStatus>("running");
   const [rendererError, setRendererError] = useState(false);
+  const [quality] = useState(() =>
+    chooseRenderQuality({
+      devicePixelRatio: window.devicePixelRatio,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)")
+        .matches,
+    }),
+  );
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -77,7 +89,8 @@ export function WaterSimulation({
         .lineTo(tankX + tankWidth, tankBottom)
         .lineTo(tankX + tankWidth, tankTop)
         .stroke({ color: 0x183b5b, width: 8 });
-      for (const droplet of simulation.droplets) {
+      for (const [index, droplet] of simulation.droplets.entries()) {
+        if (quality.lowDetail && index % 2 === 1) continue;
         const position = droplet.getPosition();
         const x = width / 2 + position.x * (width * 0.12);
         const y = tankBottom - position.y * (height * 0.16);
@@ -111,12 +124,14 @@ export function WaterSimulation({
 
     const initialize = async () => {
       try {
+        if (shouldForceRendererFailure(window))
+          throw new Error("Injected renderer failure");
         await app.init({
-          antialias: true,
+          antialias: quality.antialias,
           backgroundColor: 0xe8f7fb,
           height: 360,
           preference: "webgl",
-          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          resolution: quality.resolution,
           width: Math.max(320, host.clientWidth),
         });
         initialized = true;
@@ -175,7 +190,7 @@ export function WaterSimulation({
       simulation.destroy();
       if (initialized) app.destroy({ removeView: true }, { children: true });
     };
-  }, [generation, run]);
+  }, [generation, quality, run]);
 
   const title =
     run.outcome.resultClass === "water_correct"
@@ -211,6 +226,12 @@ export function WaterSimulation({
           </p>
         )}
       </div>
+      {quality.lowDetail && !rendererError && (
+        <p className="renderer-fallback">
+          Low-detail rendering is active. Physics bodies and the verified result
+          are unchanged.
+        </p>
+      )}
       <div className="simulation-controls" aria-label="Simulation controls">
         <button
           className="tool-button"
@@ -225,11 +246,12 @@ export function WaterSimulation({
           onClick={() => {
             setStatus("running");
             setPaused(false);
+            setRendererError(false);
             setGeneration((value) => value + 1);
           }}
           type="button"
         >
-          Replay
+          {rendererError ? "Retry simulation" : "Replay"}
         </button>
         <button
           aria-pressed={speed === 2}

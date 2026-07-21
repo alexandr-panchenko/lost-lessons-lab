@@ -11,6 +11,10 @@ import {
   createBridgeWorld,
   type BridgeWorldStatus,
 } from "../../simulations/bridge/bridge-world";
+import {
+  chooseRenderQuality,
+  shouldForceRendererFailure,
+} from "../../simulations/core/render-quality";
 
 type BridgeSimulationProps = {
   run: Extract<SimulationRun, { templateId: "bridge" }>;
@@ -31,6 +35,14 @@ export function BridgeSimulation({
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<BridgeWorldStatus>("running");
   const [rendererError, setRendererError] = useState(false);
+  const [quality] = useState(() =>
+    chooseRenderQuality({
+      devicePixelRatio: window.devicePixelRatio,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)")
+        .matches,
+    }),
+  );
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -108,12 +120,14 @@ export function BridgeSimulation({
 
     const initialize = async () => {
       try {
+        if (shouldForceRendererFailure(window))
+          throw new Error("Injected renderer failure");
         await app.init({
-          antialias: true,
+          antialias: quality.antialias,
           backgroundColor: 0xccebf1,
           height: 360,
           preference: "webgl",
-          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          resolution: quality.resolution,
           width: Math.max(320, host.clientWidth),
         });
         initialized = true;
@@ -174,11 +188,12 @@ export function BridgeSimulation({
       skipRef.current = null;
       cancelAnimationFrame(frame);
       resizeObserver?.disconnect();
+      simulation.destroy();
       if (initialized) {
         app.destroy({ removeView: true }, { children: true });
       }
     };
-  }, [generation, run]);
+  }, [generation, quality, run]);
 
   const expectedStatus = run.outcome.isMathematicallyCorrect
     ? "crossed"
@@ -209,6 +224,12 @@ export function BridgeSimulation({
           </p>
         )}
       </div>
+      {quality.lowDetail && !rendererError && (
+        <p className="renderer-fallback">
+          Low-detail rendering is active. The physics and verified result are
+          unchanged.
+        </p>
+      )}
       <div className="simulation-controls" aria-label="Simulation controls">
         <button
           className="tool-button"
@@ -223,11 +244,12 @@ export function BridgeSimulation({
           onClick={() => {
             setStatus("running");
             setPaused(false);
+            setRendererError(false);
             setGeneration((value) => value + 1);
           }}
           type="button"
         >
-          Replay
+          {rendererError ? "Retry simulation" : "Replay"}
         </button>
         <button
           aria-pressed={speed === 2}

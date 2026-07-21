@@ -150,6 +150,57 @@ describe("analysis room lifecycle", () => {
     await expect(
       limiter.reserveHourlyRateLimit("ai-ip:integration-test", 2),
     ).resolves.toBe(false);
+    await expect(
+      limiter.reserveHourlyRateLimit("room-create:integration-test", 1),
+    ).resolves.toBe(true);
+    await expect(
+      limiter.reserveHourlyRateLimit("room-create:integration-test", 1),
+    ).resolves.toBe(false);
+  });
+
+  it("expires a stale active analysis and rejects late completion", async () => {
+    const created = await createRoom();
+    const room = env.ROOMS.getByName(created.roomId);
+    const begun = await room.beginAiAttempt({
+      authorId: "student-stale-integration",
+      capability: created.studentToken,
+      contentHash: "5".repeat(64),
+      idempotencyKey: "analysis-stale-attempt",
+      previewAsStudent: false,
+      sourceCanvasSeq: 0,
+    });
+    if (!begun.ok) throw new Error("Stale attempt was rejected");
+    const future = new Date(Date.now() + 90_000).toISOString();
+    await expect(room.recoverStaleAnalysisAttempt(future)).resolves.toEqual({
+      attemptId: begun.attempt.id,
+      recovered: true,
+    });
+    const snapshot = RoomBootstrapSchema.parse(
+      await (
+        await exports.default.fetch(
+          `https://example.test/api/rooms/${created.roomId}/bootstrap`,
+          { headers: { Authorization: `Bearer ${created.studentToken}` } },
+        )
+      ).json(),
+    );
+    expect(snapshot.attempts).toContainEqual(
+      expect.objectContaining({ id: begun.attempt.id, status: "failed" }),
+    );
+    expect(snapshot.analyses).toContainEqual(
+      expect.objectContaining({
+        attemptId: begun.attempt.id,
+        failureCategory: "timeout",
+      }),
+    );
+    const next = await room.beginAiAttempt({
+      authorId: "student-stale-integration",
+      capability: created.studentToken,
+      contentHash: "6".repeat(64),
+      idempotencyKey: "analysis-after-stale-attempt",
+      previewAsStudent: false,
+      sourceCanvasSeq: 0,
+    });
+    expect(next).toMatchObject({ duplicate: false, ok: true });
   });
 
   it("keeps analysis media private to room capabilities", async () => {
@@ -216,6 +267,12 @@ describe("analysis room lifecycle", () => {
     expect([...new Uint8Array(await authorized.arrayBuffer())]).toEqual([
       1, 2, 3,
     ]);
+    await env.MEDIA.delete(r2Key);
+    const missingObject = await exports.default.fetch(
+      `https://example.test/api/rooms/${created.roomId}/media/${mediaId}`,
+      { headers: { Authorization: `Bearer ${created.teacherToken}` } },
+    );
+    expect(missingObject.status).toBe(404);
 
     const reloaded = RoomBootstrapSchema.parse(
       await (

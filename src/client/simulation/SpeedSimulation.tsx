@@ -10,6 +10,10 @@ import {
   createSpeedWorld,
   type SpeedWorldStatus,
 } from "../../simulations/speed/speed-world";
+import {
+  chooseRenderQuality,
+  shouldForceRendererFailure,
+} from "../../simulations/core/render-quality";
 
 type SpeedRun = Extract<SimulationRun, { templateId: "speed" }>;
 
@@ -30,6 +34,14 @@ export function SpeedSimulation({
   const [generation, setGeneration] = useState(0);
   const [status, setStatus] = useState<SpeedWorldStatus>("running");
   const [rendererError, setRendererError] = useState(false);
+  const [quality] = useState(() =>
+    chooseRenderQuality({
+      devicePixelRatio: window.devicePixelRatio,
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)")
+        .matches,
+    }),
+  );
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -109,12 +121,14 @@ export function SpeedSimulation({
     skipRef.current = advance;
     const initialize = async () => {
       try {
+        if (shouldForceRendererFailure(window))
+          throw new Error("Injected renderer failure");
         await app.init({
-          antialias: true,
+          antialias: quality.antialias,
           backgroundColor: 0xeaf3fb,
           height: 360,
           preference: "webgl",
-          resolution: Math.min(window.devicePixelRatio || 1, 2),
+          resolution: quality.resolution,
           width: Math.max(320, host.clientWidth),
         });
         initialized = true;
@@ -173,7 +187,7 @@ export function SpeedSimulation({
       simulation.destroy();
       if (initialized) app.destroy({ removeView: true }, { children: true });
     };
-  }, [generation, run]);
+  }, [generation, quality, run]);
 
   const title =
     run.outcome.resultClass === "speed_correct"
@@ -209,6 +223,12 @@ export function SpeedSimulation({
           </p>
         )}
       </div>
+      {quality.lowDetail && !rendererError && (
+        <p className="renderer-fallback">
+          Low-detail rendering is active. The physics and verified result are
+          unchanged.
+        </p>
+      )}
       <div className="simulation-controls" aria-label="Simulation controls">
         <button
           className="tool-button"
@@ -223,11 +243,12 @@ export function SpeedSimulation({
           onClick={() => {
             setStatus("running");
             setPaused(false);
+            setRendererError(false);
             setGeneration((value) => value + 1);
           }}
           type="button"
         >
-          Replay
+          {rendererError ? "Retry simulation" : "Replay"}
         </button>
         <button
           aria-pressed={speed === 2}

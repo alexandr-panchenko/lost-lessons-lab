@@ -7,6 +7,17 @@ type LearningFeedProps = {
   studentPerspective: boolean;
 };
 
+const SUPPORTED_PRACTICE_PATTERN =
+  /fraction|percent|measure|proportion|volume|water|flow|speed|time|distance|collision|multiplication|load|structure/iu;
+
+export function practiceRequestStatus(request: string): string {
+  const normalized = request.trim() || "Fractions";
+  if (!SUPPORTED_PRACTICE_PATTERN.test(normalized)) {
+    return "That topic is not available in this demo. Try Fractions, Water and volume, or Speed and collision.";
+  }
+  return `${normalized} selected. Choose a supported practice chip or use the bridge sample below.`;
+}
+
 export function LearningFeed({
   events,
   studentPerspective,
@@ -16,9 +27,7 @@ export function LearningFeed({
 
   function submitSetup(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    setSetupStatus(
-      `${practiceRequest || "Fractions"} selected. The bridge task is ready below.`,
-    );
+    setSetupStatus(practiceRequestStatus(practiceRequest));
   }
 
   return (

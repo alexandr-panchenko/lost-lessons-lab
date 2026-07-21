@@ -113,7 +113,15 @@ async function applyRoomCreationLimit(
   const actor = context.req.header("CF-Connecting-IP") ?? "local-development";
   const key = await roomCreationRateKey(context.env.ROOM_TOKEN_PEPPER, actor);
   const result = await context.env.ROOM_CREATE_RATE_LIMITER.limit({ key });
-  return result.success;
+  if (!result.success) return false;
+  const hourlyLimit = Number.parseInt(
+    context.env.ROOM_CREATE_IP_LIMIT_PER_HOUR,
+    10,
+  );
+  if (!Number.isInteger(hourlyLimit) || hourlyLimit < 1) return false;
+  return context.env.ROOMS.getByName(
+    `rate_room_create_${key}`,
+  ).reserveHourlyRateLimit(`room-create:${key}`, hourlyLimit);
 }
 
 async function createRoom(

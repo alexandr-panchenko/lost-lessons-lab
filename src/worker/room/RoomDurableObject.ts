@@ -320,6 +320,44 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     return true;
   }
 
+  recoverStaleAnalysisAttempt(nowIso = new Date().toISOString()): {
+    attemptId?: string;
+    recovered: boolean;
+  } {
+    const now = Date.parse(z.string().datetime().parse(nowIso));
+    const configuredTimeout = Number.parseInt(this.env.AI_TIMEOUT_MS, 10);
+    const staleAfterMs =
+      (Number.isInteger(configuredTimeout) ? configuredTimeout : 24_000) +
+      30_000;
+    const activeAttemptId = this.ctx.storage.sql
+      .exec<{ active_attempt_id: string | null }>(
+        "SELECT active_attempt_id FROM room_locks WHERE singleton = 1",
+      )
+      .toArray()[0]?.active_attempt_id;
+    if (activeAttemptId === null || activeAttemptId === undefined) {
+      return { recovered: false };
+    }
+    const active = this.analysisAttemptById(activeAttemptId);
+    if (
+      active === null ||
+      active.status === "complete" ||
+      active.status === "failed"
+    ) {
+      this.releaseAttemptProcessingLock(activeAttemptId);
+      return { attemptId: activeAttemptId, recovered: true };
+    }
+    if (now - Date.parse(active.createdAt) <= staleAfterMs) {
+      return { recovered: false };
+    }
+    this.failAiAttempt({
+      attemptId: activeAttemptId,
+      category: "timeout",
+      latencyMs: staleAfterMs,
+      usedRepair: false,
+    });
+    return { attemptId: activeAttemptId, recovered: true };
+  }
+
   async beginAiAttempt(input: z.input<typeof BeginAiAttemptSchema>): Promise<
     | { attempt: AiAttempt; duplicate: boolean; ok: true }
     | {
@@ -340,6 +378,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     if (role === "teacher" && !value.previewAsStudent) {
       return { ok: false, reason: "permission_denied" };
     }
+    this.recoverStaleAnalysisAttempt();
 
     const duplicateId = this.ctx.storage.sql
       .exec<{ id: string }>(
@@ -966,6 +1005,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     ) {
       return { ok: false, reason: "permission_denied" };
     }
+    this.recoverStaleAnalysisAttempt();
     const active = this.ctx.storage.sql
       .exec<{ active_attempt_id: string | null }>(
         "SELECT active_attempt_id FROM room_locks WHERE singleton = 1",
@@ -1126,6 +1166,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     if (meta === null) return null;
     const role = await this.roleForCapability(meta, capability);
     if (role === null) return null;
+    this.recoverStaleAnalysisAttempt();
     return this.snapshot(meta, role, capability);
   }
 

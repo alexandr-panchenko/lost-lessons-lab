@@ -128,6 +128,19 @@ A separate opt-in live model evaluation is reserved for M4 and later:
 bun run test:live-ai
 ```
 
+Set `AI_ENABLED=false` to exercise the server-side kill switch. The room,
+handwriting, deterministic validators, and template-specific manual simulation
+paths remain available. After deployment, the bounded production recovery drill
+is available as:
+
+```bash
+PRODUCTION_URL=https://your-worker.example bun run smoke:fallback:prod
+```
+
+The drill injects one client-visible AI-disabled response without changing the
+Worker configuration, verifies wrong and correct manual bridge outcomes, reload,
+and Reset, and makes no OpenAI request.
+
 See [`docs/06-TEST-PLAN.md`](docs/06-TEST-PLAN.md).
 
 ## Target architecture

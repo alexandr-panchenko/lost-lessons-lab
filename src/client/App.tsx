@@ -89,6 +89,7 @@ export function App() {
   const [copyStatus, setCopyStatus] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
   const [submittingAnalysis, setSubmittingAnalysis] = useState(false);
+  const [retryAnalysisUpload, setRetryAnalysisUpload] = useState(false);
   const [readyAiRuns, setReadyAiRuns] = useState<Set<string>>(() => new Set());
   const [resetting, setResetting] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
@@ -109,6 +110,7 @@ export function App() {
       pendingCommands.current.clear();
       setPendingCount(0);
       setSubmittingAnalysis(false);
+      setRetryAnalysisUpload(false);
       setReadyAiRuns(new Set());
       lastSeenSeq.current = 0;
       setRoomLocation(readRoomLocation(window.location));
@@ -578,6 +580,7 @@ export function App() {
     if (roomLocation === null || room === null || pendingCount > 0) return;
     setCommandError("");
     setSubmittingAnalysis(true);
+    setRetryAnalysisUpload(false);
     try {
       const raster = await rasterizeStudentAttempt(
         room.canvasOperations,
@@ -601,6 +604,7 @@ export function App() {
               roomSeq: Math.max(current.roomSeq, result.attempt.roomSeq),
             },
       );
+      setRetryAnalysisUpload(false);
     } catch (reason) {
       setSubmittingAnalysis(false);
       const code = reason instanceof Error ? reason.message : "analysis_failed";
@@ -611,6 +615,13 @@ export function App() {
           : isStructureRoom
             ? "load"
             : "bridge";
+      setRetryAnalysisUpload(
+        code !== "ai_disabled" &&
+          code !== "ai_rate_limited" &&
+          code !== "rate_limited" &&
+          !code.includes("canvas") &&
+          !code.includes("student layer"),
+      );
       setCommandError(
         code === "ai_disabled"
           ? `AI interpretation is disabled right now. Use the manual ${manualControls} controls below.`
@@ -632,6 +643,7 @@ export function App() {
       setRoom(reset);
       setReadyAiRuns(new Set());
       setSubmittingAnalysis(false);
+      setRetryAnalysisUpload(false);
       pendingCommands.current.clear();
       setPendingCount(0);
       lastSeenSeq.current = reset.roomSeq;
@@ -767,6 +779,7 @@ export function App() {
               }
               onSubmit={() => void submitHandwritingAttempt()}
               pendingOperations={pendingCount}
+              retryUpload={retryAnalysisUpload}
               submitting={submittingAnalysis}
               templateId={
                 isWaterRoom

@@ -73,4 +73,15 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
   await expect(
     page.getByRole("button", { name: "Run manual value" }),
   ).toBeEnabled();
+  await page.getByLabel("Bridge length").fill("4.08");
+  await page.getByRole("button", { name: "Run manual value" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Bridge too short" }),
+  ).toBeVisible();
+  await page.getByLabel("Bridge length").fill("9");
+  await page.getByRole("button", { name: "Run manual value" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Safe crossing" }),
+  ).toBeVisible();
+  await expect(page.getByText("2 shared operations saved")).toBeVisible();
 });

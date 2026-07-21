@@ -2,12 +2,14 @@ export function AnalysisSubmitPanel({
   disabled,
   onSubmit,
   pendingOperations,
+  retryUpload,
   submitting,
   templateId,
 }: {
   disabled: boolean;
   onSubmit: () => void;
   pendingOperations: number;
+  retryUpload: boolean;
   submitting: boolean;
   templateId: "bridge" | "water" | "speed" | "structure";
 }) {
@@ -39,7 +41,11 @@ export function AnalysisSubmitPanel({
         onClick={onSubmit}
         type="button"
       >
-        {submitting ? "Preparing student work…" : "Run my solution"}
+        {submitting
+          ? "Preparing student work…"
+          : retryUpload
+            ? "Retry upload"
+            : "Run my solution"}
       </button>
       {pendingOperations > 0 && (
         <p className="inline-status" role="status">

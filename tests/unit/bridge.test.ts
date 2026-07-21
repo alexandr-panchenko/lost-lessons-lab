@@ -5,7 +5,10 @@ import {
   deriveBridgeLength,
   HERO_BRIDGE_PARAMETERS,
 } from "../../src/shared/domain/bridge";
-import { runBridgeWorldToResult } from "../../src/simulations/bridge/bridge-world";
+import {
+  createBridgeWorld,
+  runBridgeWorldToResult,
+} from "../../src/simulations/bridge/bridge-world";
 
 describe("deterministic bridge domain", () => {
   it("derives the frozen hero answer", () => {
@@ -62,4 +65,15 @@ describe("deterministic bridge domain", () => {
       expect(result.steps).toBeLessThanOrEqual(720);
     },
   );
+
+  it("tears down the bridge world explicitly", () => {
+    const simulation = createBridgeWorld(
+      classifyBridgeInput(HERO_BRIDGE_PARAMETERS, {
+        deployedLengthMeters: 4.08,
+      }),
+    );
+    expect(simulation.world.getBodyCount()).toBeGreaterThan(0);
+    simulation.destroy();
+    expect(simulation.world.getBodyCount()).toBe(0);
+  });
 });

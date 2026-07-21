@@ -11,6 +11,7 @@ export type BridgeWorldStatus = "running" | "crossed" | "recovered";
 export type BridgeWorld = {
   bodyCount: number;
   bridgeLengthMeters: number;
+  destroy: () => void;
   step: () => BridgeWorldStatus;
   vehicle: Body;
   world: World;
@@ -64,9 +65,18 @@ export function createBridgeWorld(outcome: BridgeOutcome): BridgeWorld {
     return "running";
   }
 
+  function destroy(): void {
+    for (let body = world.getBodyList(); body;) {
+      const next = body.getNext();
+      world.destroyBody(body);
+      body = next;
+    }
+  }
+
   return {
     bodyCount: world.getBodyCount(),
     bridgeLengthMeters,
+    destroy,
     step,
     vehicle,
     world,
@@ -104,11 +114,13 @@ export function runBridgeWorldToResult(outcome: BridgeOutcome): {
     }
   }
   if (status === "running") throw new Error("Bridge world did not settle");
-  return {
+  const result = {
     bodyCount: simulation.bodyCount,
     finite,
     maxAbsPosition,
     status,
     steps,
   };
+  simulation.destroy();
+  return result;
 }

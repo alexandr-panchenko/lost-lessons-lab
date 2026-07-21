@@ -13,7 +13,8 @@ import { speedFixtureById } from "../../../fixtures/speed/packs";
 import { structureFixtureById } from "../../../fixtures/structure/packs";
 import type { WorkerEnv } from "../env";
 import { AttemptUploadSchema, validatePngUpload } from "../media/png";
-import { logAnalysisMetadata } from "../security/logging";
+import { persistAnalysisMedia } from "../media/attempt-media";
+import { logAnalysisMetadata, safeErrorClass } from "../security/logging";
 import { reserveAiIpRequest } from "../security/rate-limit";
 import { bearerToken, ROOM_HEADERS, RoomIdSchema } from "./rooms";
 
@@ -77,6 +78,7 @@ async function runAnalysis(input: {
       upstreamStatus?: number;
       usedRepair: boolean;
     }) => {
+      const errorClass = safeErrorClass(result.diagnostic);
       await input.room.failAiAttempt({
         attemptId: input.attemptId,
         category: result.category,
@@ -86,9 +88,7 @@ async function runAnalysis(input: {
       logAnalysisMetadata({
         attemptId: input.attemptId,
         category: result.category,
-        ...(result.diagnostic === undefined
-          ? {}
-          : { diagnostic: result.diagnostic }),
+        ...(errorClass === undefined ? {} : { errorClass }),
         event: "analysis.failed",
         latencyMs: result.latencyMs,
         roomHash: hashedRoom,
@@ -324,16 +324,10 @@ async function captureAttempt(
   const mediaId = `media_${crypto.randomUUID()}`;
   const r2Key = `rooms/${roomId.data}/attempts/${begun.attempt.id}/${png.contentHash}.png`;
   try {
-    await context.env.MEDIA.put(r2Key, png.bytes, {
-      customMetadata: {
-        attemptId: begun.attempt.id,
-        roomId: roomId.data,
-        visibility: "all",
-      },
-      httpMetadata: { contentType: "image/png" },
-    });
-    const attempt = await room.attachAiAttemptMedia({
+    const attempt = await persistAnalysisMedia({
       attemptId: begun.attempt.id,
+      bucket: context.env.MEDIA,
+      bytes: png.bytes,
       media: {
         byteSize: png.bytes.byteLength,
         contentHash: png.contentHash,
@@ -343,6 +337,8 @@ async function captureAttempt(
         width: png.width,
       },
       r2Key,
+      room,
+      roomId: roomId.data,
     });
     context.executionCtx.waitUntil(
       runAnalysis({
@@ -356,13 +352,6 @@ async function captureAttempt(
     );
     return context.json({ attempt, duplicate: false }, 202, ROOM_HEADERS);
   } catch {
-    await context.env.MEDIA.delete(r2Key).catch(() => undefined);
-    await room.failAiAttempt({
-      attemptId: begun.attempt.id,
-      category: "media_storage",
-      latencyMs: 0,
-      usedRepair: false,
-    });
     return context.json(
       { error: "media_storage", fallback: "manual" },
       503,
