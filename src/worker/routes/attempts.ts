@@ -70,9 +70,15 @@ async function runAnalysis(input: {
       logAnalysisMetadata({
         attemptId: input.attemptId,
         category: result.category,
+        ...(result.diagnostic === undefined
+          ? {}
+          : { diagnostic: result.diagnostic }),
         event: "analysis.failed",
         latencyMs: result.latencyMs,
         roomHash: hashedRoom,
+        ...(result.upstreamStatus === undefined
+          ? {}
+          : { upstreamStatus: result.upstreamStatus }),
         usedRepair: result.usedRepair,
       });
       return;

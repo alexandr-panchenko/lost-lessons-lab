@@ -168,8 +168,10 @@ export type SolutionAnalysisRunResult =
     }
   | {
       category: AnalysisFailureCategory;
+      diagnostic?: string;
       latencyMs: number;
       ok: false;
+      upstreamStatus?: number;
       usedRepair: boolean;
       validationIssues?: string[];
     };
@@ -178,6 +180,8 @@ class UpstreamFailure extends Error {
   constructor(
     readonly retriable: boolean,
     readonly category: AnalysisFailureCategory = "upstream",
+    readonly status?: number,
+    readonly diagnostic?: string,
   ) {
     super(category);
   }
@@ -235,14 +239,19 @@ async function requestOnce(input: {
       method: "POST",
       signal: input.signal,
     });
-  } catch {
+  } catch (error) {
     if (input.signal.aborted) throw new UpstreamFailure(false, "timeout");
-    throw new UpstreamFailure(true, "upstream");
+    const diagnostic =
+      error instanceof Error
+        ? `${error.name}:${error.message}`.slice(0, 180)
+        : "unknown-fetch-error";
+    throw new UpstreamFailure(true, "upstream", undefined, diagnostic);
   }
   if (!response.ok) {
     throw new UpstreamFailure(
       response.status === 429 || response.status >= 500,
       response.status === 429 ? "rate_limited" : "upstream",
+      response.status,
     );
   }
   const parsed = OpenAiResponseSchema.safeParse(await response.json());
@@ -288,7 +297,8 @@ export async function analyzeBridgeSolution(input: {
     () => controller.abort(),
     input.config.AI_TIMEOUT_MS,
   );
-  const fetchImpl = input.fetchImpl ?? fetch;
+  const fetchImpl: typeof fetch =
+    input.fetchImpl ?? ((resource, init) => globalThis.fetch(resource, init));
   let repairInstruction: string | undefined;
   let usedRepair = false;
 
@@ -372,8 +382,14 @@ export async function analyzeBridgeSolution(input: {
         if (!upstream.retriable || attempt >= input.config.AI_MAX_RETRIES) {
           return {
             category: upstream.category,
+            ...(upstream.diagnostic === undefined
+              ? {}
+              : { diagnostic: upstream.diagnostic }),
             latencyMs: Date.now() - startedAt,
             ok: false,
+            ...(upstream.status === undefined
+              ? {}
+              : { upstreamStatus: upstream.status }),
             usedRepair,
           };
         }
