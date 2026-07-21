@@ -17,7 +17,8 @@ jobs:
   deploy:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      vars.PRODUCTION_URL != ''
+      vars.PRODUCTION_URL != '' &&
+      !startsWith(github.event.workflow_run.display_title, 'docs:')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
