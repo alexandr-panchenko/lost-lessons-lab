@@ -296,7 +296,7 @@ export function CanvasWorkspace({
           Draw with a mouse, finger, or stylus. Non-drawing actions are
           available as buttons above the canvas.
           {preparedSample &&
-            " This prepared judge work is ordinary editable student ink."}
+            " This prepared sample is ordinary editable student ink."}
         </p>
         <span aria-live="polite">
           {connected

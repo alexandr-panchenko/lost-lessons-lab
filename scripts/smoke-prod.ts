@@ -31,14 +31,15 @@ const BootstrapSchema = z.object({
       visibility: z.enum(["all", "teacher"]),
     }),
   ),
+  fixtureId: z.string(),
   role: z.enum(["teacher", "student"]),
   roomId: z.string(),
   simulationRuns: z.array(z.unknown()),
   studentCapability: z.string().min(32).optional(),
 });
 
-async function createJudgeRoom() {
-  const response = await fetch(new URL("/judge", productionOrigin), {
+async function createRoom(path = "/judge") {
+  const response = await fetch(new URL(path, productionOrigin), {
     redirect: "manual",
   });
   if (response.status !== 302) {
@@ -61,10 +62,26 @@ async function bootstrap(roomId: string, token: string) {
   });
 }
 
-const firstRoom = await createJudgeRoom();
-const secondRoom = await createJudgeRoom();
+const firstRoom = await createRoom();
+const secondRoom = await createRoom();
 if (firstRoom.roomId === secondRoom.roomId) {
   throw new Error("Two judge requests returned the same room.");
+}
+
+const waterRoom = await createRoom("/water");
+const waterTeacherResponse = await bootstrap(waterRoom.roomId, waterRoom.token);
+if (!waterTeacherResponse.ok) {
+  throw new Error(`Water bootstrap failed with ${waterTeacherResponse.status}`);
+}
+const waterTeacher = BootstrapSchema.parse(await waterTeacherResponse.json());
+if (
+  waterTeacher.fixtureId !== "water-aquarium-v1" ||
+  waterTeacher.canvasOperations.length < 5 ||
+  !waterTeacher.events.some(
+    (event) => event.type === "task.preview" && event.visibility === "all",
+  )
+) {
+  throw new Error("Production water room is not a prepared real room.");
 }
 
 const teacherResponse = await bootstrap(firstRoom.roomId, firstRoom.token);
@@ -199,6 +216,7 @@ socket.send(
       inputs: { deployedLengthMeters: 4.08, fractionAsDecimal: 0.34 },
       previewAsStudent: false,
       sourceCanvasSeq: operationMessage.payload.seq,
+      templateId: "bridge",
     },
     requestId: crypto.randomUUID(),
     type: "attempt.manual-capture",

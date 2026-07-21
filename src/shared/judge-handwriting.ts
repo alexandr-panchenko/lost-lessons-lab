@@ -131,6 +131,13 @@ const GLYPHS: Record<string, Glyph> = {
       [1, 0.7],
     ],
   ],
+  L: [
+    [
+      [0.1, 0],
+      [0.1, 1],
+      [1, 1],
+    ],
+  ],
   m: [
     [
       [0, 1],
@@ -235,4 +242,18 @@ export function preparedBridgeCorrection(prefix: string): CanvasOperation[] {
     },
     ...preparedBridgeHandwriting("correct", prefix),
   ];
+}
+
+export function preparedWaterHandwriting(
+  prefix = "water-aquarium",
+): CanvasOperation[] {
+  return lineOperations({
+    height: 0.18,
+    prefix: `${prefix}-line-1`,
+    step: 0.072,
+    text: "3 x 5 = 15L",
+    width: 0.045,
+    x: 0.12,
+    y: 0.34,
+  });
 }

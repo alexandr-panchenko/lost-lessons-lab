@@ -128,7 +128,11 @@ export function AnalysisCard({
       )}
       {analysis?.failureCategory != null && (
         <div className="analysis-fallback" role="status">
-          <strong>Use the manual bridge controls below.</strong>
+          <strong>
+            Use the manual{" "}
+            {attempt.taskId === "water-task-v1" ? "water" : "bridge"} controls
+            below.
+          </strong>
           <p>
             The handwriting could not be interpreted safely (
             {analysis.failureCategory.replaceAll("_", " ")}). Your drawing is
@@ -158,23 +162,50 @@ export function AnalysisCard({
               ))}
             </ol>
           </section>
-          <section
-            className="analysis-values"
-            aria-label="Extracted simulation values"
-          >
-            <div>
-              <span>Fraction as decimal</span>
-              <strong>
-                {result.scenarioInputs.fractionAsDecimal ?? "unclear"}
-              </strong>
-            </div>
-            <div>
-              <span>Bridge length</span>
-              <strong>
-                {result.scenarioInputs.deployedLengthMeters ?? "unclear"} m
-              </strong>
-            </div>
-          </section>
+          {"deployedLengthMeters" in result.scenarioInputs ? (
+            <section
+              className="analysis-values"
+              aria-label="Extracted simulation values"
+            >
+              <div>
+                <span>Fraction as decimal</span>
+                <strong>
+                  {result.scenarioInputs.fractionAsDecimal ?? "unclear"}
+                </strong>
+              </div>
+              <div>
+                <span>Bridge length</span>
+                <strong>
+                  {result.scenarioInputs.deployedLengthMeters ?? "unclear"} m
+                </strong>
+              </div>
+            </section>
+          ) : (
+            <section
+              className="analysis-values"
+              aria-label="Extracted simulation values"
+            >
+              <div>
+                <span>Flow rate</span>
+                <strong>
+                  {result.scenarioInputs.flowRateLitersPerMinute ?? "unclear"}{" "}
+                  L/min
+                </strong>
+              </div>
+              <div>
+                <span>Time</span>
+                <strong>
+                  {result.scenarioInputs.timeMinutes ?? "unclear"} min
+                </strong>
+              </div>
+              <div>
+                <span>Water volume</span>
+                <strong>
+                  {result.scenarioInputs.volumeLiters ?? "unclear"} L
+                </strong>
+              </div>
+            </section>
+          )}
           {result.firstError !== null && (
             <section className="analysis-error-note">
               <h3>Likely first error</h3>
@@ -200,7 +231,8 @@ export function AnalysisCard({
                   onClick={() => onLaunch(attempt.id)}
                   type="button"
                 >
-                  Launch bridge
+                  Launch{" "}
+                  {attempt.taskId === "water-task-v1" ? "water" : "bridge"}
                 </button>
               </>
             ) : (

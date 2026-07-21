@@ -11,6 +11,10 @@ import {
   BridgeOutcomeSchema,
   BridgeSimulationInputsSchema,
 } from "./domain/bridge";
+import {
+  WaterOutcomeSchema,
+  WaterSimulationInputsSchema,
+} from "./domain/water";
 
 export const RoomRoleSchema = z.enum(["teacher", "student"]);
 export type RoomRole = z.infer<typeof RoomRoleSchema>;
@@ -74,7 +78,7 @@ export const ManualAttemptSchema = z
     id: z.string().min(8).max(128),
     sourceCanvasSeq: z.number().int().nonnegative(),
     status: z.literal("completed"),
-    taskId: z.literal("bridge-task-v1"),
+    taskId: z.enum(["bridge-task-v1", "water-task-v1"]),
   })
   .strict();
 export type ManualAttempt = z.infer<typeof ManualAttemptSchema>;
@@ -85,7 +89,7 @@ export const RoomAttemptSchema = z.union([
 ]);
 export type RoomAttempt = z.infer<typeof RoomAttemptSchema>;
 
-export const SimulationRunSchema = z
+export const BridgeSimulationRunSchema = z
   .object({
     attemptId: z.string().min(8).max(128),
     createdAt: z.string(),
@@ -99,6 +103,24 @@ export const SimulationRunSchema = z
     templateVersion: z.literal(1),
   })
   .strict();
+export const WaterSimulationRunSchema = z
+  .object({
+    attemptId: z.string().min(8).max(128),
+    createdAt: z.string(),
+    id: z.string().min(8).max(128),
+    inputs: WaterSimulationInputsSchema,
+    outcome: WaterOutcomeSchema,
+    presentationVariant: z.literal("tank-splash-v1"),
+    randomSeed: z.string().min(8).max(128),
+    roomSeq: z.number().int().positive(),
+    templateId: z.literal("water"),
+    templateVersion: z.literal(1),
+  })
+  .strict();
+export const SimulationRunSchema = z.discriminatedUnion("templateId", [
+  BridgeSimulationRunSchema,
+  WaterSimulationRunSchema,
+]);
 export type SimulationRun = z.infer<typeof SimulationRunSchema>;
 
 export const RoomBootstrapSchema = z
@@ -156,14 +178,26 @@ export const SocketCanvasOperationMessageSchema = z
 export const SocketManualAttemptMessageSchema = z
   .object({
     clientId: z.string().min(8).max(128),
-    payload: z
-      .object({
-        idempotencyKey: z.string().min(8).max(128),
-        inputs: BridgeSimulationInputsSchema,
-        previewAsStudent: z.boolean().default(false),
-        sourceCanvasSeq: z.number().int().nonnegative(),
-      })
-      .strict(),
+    payload: z.discriminatedUnion("templateId", [
+      z
+        .object({
+          idempotencyKey: z.string().min(8).max(128),
+          inputs: BridgeSimulationInputsSchema,
+          previewAsStudent: z.boolean().default(false),
+          sourceCanvasSeq: z.number().int().nonnegative(),
+          templateId: z.literal("bridge"),
+        })
+        .strict(),
+      z
+        .object({
+          idempotencyKey: z.string().min(8).max(128),
+          inputs: WaterSimulationInputsSchema,
+          previewAsStudent: z.boolean().default(false),
+          sourceCanvasSeq: z.number().int().nonnegative(),
+          templateId: z.literal("water"),
+        })
+        .strict(),
+    ]),
     requestId: z.string().min(8).max(128),
     type: z.literal("attempt.manual-capture"),
     v: z.literal(1),

@@ -5,22 +5,21 @@ import { useEffect, useRef, useState } from "react";
 
 import type { SimulationRun } from "../../shared/protocol";
 import {
-  BRIDGE_FIXED_STEP_SECONDS,
-  BRIDGE_GAP_METERS,
-  BRIDGE_MAX_STEPS,
-  createBridgeWorld,
-  type BridgeWorldStatus,
-} from "../../simulations/bridge/bridge-world";
+  WATER_FIXED_STEP_SECONDS,
+  WATER_MAX_STEPS,
+  createWaterWorld,
+  type WaterWorldStatus,
+} from "../../simulations/water/water-world";
 
-type BridgeSimulationProps = {
-  run: Extract<SimulationRun, { templateId: "bridge" }>;
-  sourceCanvasSeq: number;
-};
+type WaterRun = Extract<SimulationRun, { templateId: "water" }>;
 
-export function BridgeSimulation({
+export function WaterSimulation({
   run,
   sourceCanvasSeq,
-}: BridgeSimulationProps) {
+}: {
+  run: WaterRun;
+  sourceCanvasSeq: number;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
   const speedRef = useRef<1 | 2>(1);
@@ -29,7 +28,7 @@ export function BridgeSimulation({
   const [speed, setSpeed] = useState<1 | 2>(1);
   const [muted, setMuted] = useState(true);
   const [generation, setGeneration] = useState(0);
-  const [status, setStatus] = useState<BridgeWorldStatus>("running");
+  const [status, setStatus] = useState<WaterWorldStatus>("running");
   const [rendererError, setRendererError] = useState(false);
 
   useEffect(() => {
@@ -48,11 +47,11 @@ export function BridgeSimulation({
     let resizeObserver: ResizeObserver | null = null;
     const app = new Application();
     const scene = new Graphics();
-    const simulation = createBridgeWorld(run.outcome);
+    const simulation = createWaterWorld(run.outcome);
     let priorTime = performance.now();
     let accumulator = 0;
     let steps = 0;
-    let terminal: BridgeWorldStatus = "running";
+    let terminal: WaterWorldStatus = "running";
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -60,44 +59,48 @@ export function BridgeSimulation({
     const renderScene = () => {
       const width = app.renderer.width;
       const height = app.renderer.height;
-      const worldX = (value: number) => ((value + 3) / 16) * width;
-      const worldY = (value: number) => height - ((value + 3.5) / 7) * height;
-      const vehicle = simulation.vehicle.getPosition();
+      const tankX = width * 0.23;
+      const tankWidth = width * 0.54;
+      const tankTop = height * 0.12;
+      const tankBottom = height * 0.86;
+      const tankHeight = tankBottom - tankTop;
+      const visibleRatio = Math.min(run.outcome.fillRatio, 1);
+      const waterHeight = tankHeight * visibleRatio;
       scene.clear();
+      scene.rect(0, 0, width, height).fill({ color: 0xe8f7fb });
       scene
-        .rect(0, 0, width, height)
-        .fill({ color: 0xccebf1 })
-        .rect(0, worldY(0), worldX(0), height - worldY(0))
-        .fill({ color: 0x6a9b62 })
-        .rect(
-          worldX(BRIDGE_GAP_METERS),
-          worldY(0),
-          width - worldX(BRIDGE_GAP_METERS),
-          height - worldY(0),
-        )
-        .fill({ color: 0x6a9b62 })
-        .rect(
-          worldX(0),
-          worldY(0.08),
-          worldX(simulation.bridgeLengthMeters) - worldX(0),
-          Math.max(8, height * 0.025),
-        )
-        .fill({ color: 0xd88b43 })
-        .rect(worldX(vehicle.x) - 18, worldY(vehicle.y) - 12, 36, 20)
-        .fill({ color: 0x263a5a })
-        .circle(worldX(vehicle.x) - 11, worldY(vehicle.y) + 9, 6)
-        .circle(worldX(vehicle.x) + 11, worldY(vehicle.y) + 9, 6)
-        .fill({ color: 0xf6c453 });
-      if (terminal === "recovered") {
+        .rect(tankX, tankBottom - waterHeight, tankWidth, waterHeight)
+        .fill({ color: 0x4bb7d8, alpha: 0.78 });
+      scene
+        .moveTo(tankX, tankTop)
+        .lineTo(tankX, tankBottom)
+        .lineTo(tankX + tankWidth, tankBottom)
+        .lineTo(tankX + tankWidth, tankTop)
+        .stroke({ color: 0x183b5b, width: 8 });
+      for (const droplet of simulation.droplets) {
+        const position = droplet.getPosition();
+        const x = width / 2 + position.x * (width * 0.12);
+        const y = tankBottom - position.y * (height * 0.16);
+        scene.circle(x, y, 7).fill({ color: 0x298caf, alpha: 0.85 });
+      }
+      if (run.outcome.resultClass === "water_overflow") {
         scene
-          .circle(worldX(vehicle.x), worldY(-2.5), 28)
-          .fill({ color: 0xf6c453, alpha: 0.35 });
+          .moveTo(tankX - 20, tankTop + 4)
+          .bezierCurveTo(
+            tankX + tankWidth * 0.25,
+            tankTop - 20,
+            tankX + tankWidth * 0.75,
+            tankTop + 20,
+            tankX + tankWidth + 20,
+            tankTop + 4,
+          )
+          .stroke({ color: 0x4bb7d8, width: 12, alpha: 0.7 });
       }
       app.render();
     };
 
     const advance = () => {
-      while (terminal === "running" && steps < BRIDGE_MAX_STEPS) {
+      while (terminal === "running" && steps < WATER_MAX_STEPS) {
         terminal = simulation.step();
         steps += 1;
       }
@@ -110,7 +113,7 @@ export function BridgeSimulation({
       try {
         await app.init({
           antialias: true,
-          backgroundColor: 0xccebf1,
+          backgroundColor: 0xe8f7fb,
           height: 360,
           preference: "webgl",
           resolution: Math.min(window.devicePixelRatio || 1, 2),
@@ -130,12 +133,10 @@ export function BridgeSimulation({
           renderScene();
         });
         resizeObserver.observe(host);
-
         if (reducedMotion) {
           advance();
           return;
         }
-
         const animate = (time: number) => {
           if (cancelled) return;
           const delta = Math.min((time - priorTime) / 1000, 0.1);
@@ -144,12 +145,12 @@ export function BridgeSimulation({
             accumulator += delta * speedRef.current;
             let frameSteps = 0;
             while (
-              accumulator >= BRIDGE_FIXED_STEP_SECONDS &&
+              accumulator >= WATER_FIXED_STEP_SECONDS &&
               frameSteps < 8 &&
               terminal === "running"
             ) {
               terminal = simulation.step();
-              accumulator -= BRIDGE_FIXED_STEP_SECONDS;
+              accumulator -= WATER_FIXED_STEP_SECONDS;
               steps += 1;
               frameSteps += 1;
             }
@@ -162,44 +163,45 @@ export function BridgeSimulation({
         frame = requestAnimationFrame(animate);
       } catch {
         setRendererError(true);
-        setStatus(
-          run.outcome.isMathematicallyCorrect ? "crossed" : "recovered",
-        );
+        setStatus("settled");
       }
     };
     void initialize();
-
     return () => {
       cancelled = true;
       skipRef.current = null;
       cancelAnimationFrame(frame);
       resizeObserver?.disconnect();
-      if (initialized) {
-        app.destroy({ removeView: true }, { children: true });
-      }
+      simulation.destroy();
+      if (initialized) app.destroy({ removeView: true }, { children: true });
     };
   }, [generation, run]);
 
-  const expectedStatus = run.outcome.isMathematicallyCorrect
-    ? "crossed"
-    : "recovered";
-  const outcomeTitle =
-    expectedStatus === "crossed" ? "Safe crossing" : "Bridge too short";
+  const title =
+    run.outcome.resultClass === "water_correct"
+      ? "Water level on target"
+      : run.outcome.resultClass === "water_overflow"
+        ? "Tank overflow"
+        : run.outcome.resultClass === "water_overfill"
+          ? "Water level too high"
+          : "Tank underfilled";
   const transcript =
-    expectedStatus === "crossed"
-      ? `The ${run.inputs.deployedLengthMeters} meter bridge spans the 9 meter ravine. The rescue vehicle crosses safely.`
-      : `The ${run.inputs.deployedLengthMeters} meter bridge ends before the 9 meter ravine is crossed. The rescue vehicle drops into the safe recovery zone.`;
+    run.outcome.resultClass === "water_correct"
+      ? `${run.inputs.volumeLiters} liters fills the tank to the intended level.`
+      : run.outcome.resultClass === "water_overflow"
+        ? `${run.inputs.volumeLiters} liters exceeds the ${run.outcome.explanationData.capacityLiters} liter capacity, producing a bounded splash.`
+        : run.outcome.resultClass === "water_overfill"
+          ? `${run.inputs.volumeLiters} liters is above the intended ${run.outcome.correctInputs.volumeLiters} liters but remains inside the tank.`
+          : `${run.inputs.volumeLiters} liters leaves the level below the intended ${run.outcome.correctInputs.volumeLiters} liters.`;
 
   return (
     <article className="simulation-card" aria-labelledby={`run-${run.id}`}>
       <div className="simulation-card__heading">
         <div>
-          <p className="feed-card__label">Deterministic bridge run</p>
-          <h2 id={`run-${run.id}`}>{outcomeTitle}</h2>
+          <p className="feed-card__label">Deterministic water run</p>
+          <h2 id={`run-${run.id}`}>{title}</h2>
         </div>
-        <strong className={`result-pill result-pill--${expectedStatus}`}>
-          {run.inputs.deployedLengthMeters} m
-        </strong>
+        <strong className="result-pill">{run.inputs.volumeLiters} L</strong>
       </div>
       <div className="simulation-stage" ref={hostRef}>
         {rendererError && (
@@ -260,9 +262,8 @@ export function BridgeSimulation({
         </strong>
         <p>{transcript}</p>
         <p>
-          Domain check: expected{" "}
-          {run.outcome.correctInputs.deployedLengthMeters} m; submitted{" "}
-          {run.inputs.deployedLengthMeters} m. Physics visualizes this
+          Domain check: expected {run.outcome.correctInputs.volumeLiters} L;
+          submitted {run.inputs.volumeLiters} L. Physics visualizes this
           classification—it does not grade the answer.
         </p>
         <p>

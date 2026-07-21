@@ -4,6 +4,7 @@ import {
   BridgeSimulationInputsSchema,
   type BridgeOutcome,
 } from "./domain/bridge";
+import { WaterSimulationInputsSchema, type WaterOutcome } from "./domain/water";
 
 const BoundedTextSchema = z.string().trim().min(1).max(320);
 
@@ -67,6 +68,35 @@ export const SolutionAnalysisSchema = z
   })
   .strict();
 export type SolutionAnalysis = z.infer<typeof SolutionAnalysisSchema>;
+
+const WaterFinalAnswerSchema = z
+  .object({
+    name: z.literal("volumeLiters"),
+    unit: z.enum(["L", "liter", "liters", "litre", "litres"]).nullable(),
+    value: z.number().finite().nullable(),
+  })
+  .strict();
+
+export const WaterSolutionAnalysisSchema = SolutionAnalysisSchema.omit({
+  finalAnswers: true,
+  scenarioInputs: true,
+}).extend({
+  finalAnswers: z.array(WaterFinalAnswerSchema).max(8),
+  scenarioInputs: z
+    .object({
+      flowRateLitersPerMinute: z.number().finite().nullable(),
+      timeMinutes: z.number().finite().nullable(),
+      volumeLiters: z.number().finite().nullable(),
+    })
+    .strict(),
+});
+export type WaterSolutionAnalysis = z.infer<typeof WaterSolutionAnalysisSchema>;
+
+export const AnySolutionAnalysisSchema = z.union([
+  SolutionAnalysisSchema,
+  WaterSolutionAnalysisSchema,
+]);
+export type AnySolutionAnalysis = z.infer<typeof AnySolutionAnalysisSchema>;
 
 export const SOLUTION_ANALYSIS_JSON_SCHEMA = {
   additionalProperties: false,
@@ -184,6 +214,55 @@ export const SOLUTION_ANALYSIS_JSON_SCHEMA = {
   type: "object",
 } as const;
 
+export const WATER_SOLUTION_ANALYSIS_JSON_SCHEMA = {
+  ...SOLUTION_ANALYSIS_JSON_SCHEMA,
+  properties: {
+    ...SOLUTION_ANALYSIS_JSON_SCHEMA.properties,
+    finalAnswers: {
+      items: {
+        additionalProperties: false,
+        properties: {
+          name: { const: "volumeLiters", type: "string" },
+          unit: {
+            anyOf: [
+              {
+                enum: ["L", "liter", "liters", "litre", "litres"],
+                type: "string",
+              },
+              { type: "null" },
+            ],
+          },
+          value: { anyOf: [{ type: "number" }, { type: "null" }] },
+        },
+        required: ["name", "value", "unit"],
+        type: "object",
+      },
+      maxItems: 8,
+      type: "array",
+    },
+    scenarioInputs: {
+      additionalProperties: false,
+      properties: {
+        flowRateLitersPerMinute: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          description:
+            "The flow rate written by the learner, in liters per minute.",
+        },
+        timeMinutes: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          description: "The duration written by the learner, in minutes.",
+        },
+        volumeLiters: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          description: "The final volume written by the learner, in liters.",
+        },
+      },
+      required: ["flowRateLitersPerMinute", "timeMinutes", "volumeLiters"],
+      type: "object",
+    },
+  },
+} as const;
+
 export const AnalysisStatusSchema = z.enum([
   "uploading",
   "reading",
@@ -234,7 +313,7 @@ export const AiAttemptSchema = z
     roomSeq: z.number().int().positive(),
     sourceCanvasSeq: z.number().int().nonnegative(),
     status: AnalysisStatusSchema,
-    taskId: z.literal("bridge-task-v1"),
+    taskId: z.enum(["bridge-task-v1", "water-task-v1"]),
   })
   .strict();
 export type AiAttempt = z.infer<typeof AiAttemptSchema>;
@@ -248,7 +327,7 @@ export const AnalysisRecordSchema = z
     latencyMs: z.number().int().nonnegative(),
     modelId: z.string().min(1).max(80).nullable(),
     responseId: z.string().min(1).max(160).nullable(),
-    result: SolutionAnalysisSchema.nullable(),
+    result: AnySolutionAnalysisSchema.nullable(),
     usedRepair: z.boolean(),
   })
   .strict();
@@ -259,4 +338,11 @@ export type ValidatedBridgeAnalysis = {
   disagreement: boolean;
   inputs: z.infer<typeof BridgeSimulationInputsSchema>;
   outcome: BridgeOutcome;
+};
+
+export type ValidatedWaterAnalysis = {
+  analysis: WaterSolutionAnalysis;
+  disagreement: boolean;
+  inputs: z.infer<typeof WaterSimulationInputsSchema>;
+  outcome: WaterOutcome;
 };

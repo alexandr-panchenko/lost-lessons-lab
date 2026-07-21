@@ -23,8 +23,10 @@ import {
   submitAnalysisAttempt,
 } from "./room/room-client";
 import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
+import { ManualWaterPanel } from "./simulation/ManualWaterPanel";
 import type { CanvasOperation } from "../shared/canvas";
 import type { BridgeSimulationInputs } from "../shared/domain/bridge";
+import type { WaterSimulationInputs } from "../shared/domain/water";
 import type { AnalysisRecord } from "../shared/analysis-types";
 import { preparedBridgeCorrection } from "../shared/judge-handwriting";
 import type {
@@ -38,6 +40,11 @@ type ConnectionState = "connecting" | "connected" | "disconnected";
 const BridgeSimulation = lazy(() =>
   import("./simulation/BridgeSimulation").then((module) => ({
     default: module.BridgeSimulation,
+  })),
+);
+const WaterSimulation = lazy(() =>
+  import("./simulation/WaterSimulation").then((module) => ({
+    default: module.WaterSimulation,
   })),
 );
 
@@ -428,6 +435,7 @@ export function App() {
   const isTeacher = room.role === "teacher";
   const studentPerspective = room.role === "student" || previewStudent;
   const activeLayer = studentPerspective ? "student" : "teacher";
+  const isWaterRoom = room.fixtureId.startsWith("water-");
   const studentLink =
     isTeacher && room.studentCapability !== undefined
       ? `${window.location.origin}/r/${room.roomId}#token=${room.studentCapability}`
@@ -474,6 +482,24 @@ export function App() {
         inputs,
         previewAsStudent: isTeacher && previewStudent,
         sourceCanvasSeq: latestStudentSeq,
+        templateId: "bridge",
+      },
+      requestId: crypto.randomUUID(),
+      type: "attempt.manual-capture",
+      v: 1,
+    });
+  }
+
+  function submitManualWaterAttempt(inputs: WaterSimulationInputs): void {
+    const idempotencyKey = crypto.randomUUID();
+    queueCommand(idempotencyKey, {
+      clientId: clientId.current,
+      payload: {
+        idempotencyKey,
+        inputs,
+        previewAsStudent: isTeacher && previewStudent,
+        sourceCanvasSeq: latestStudentSeq,
+        templateId: "water",
       },
       requestId: crypto.randomUUID(),
       type: "attempt.manual-capture",
@@ -658,7 +684,9 @@ export function App() {
           activeLayer={activeLayer}
           connected={connection === "connected"}
           onOperation={sendCanvasOperation}
-          preparedSample={room.fixtureId === "judge-v1"}
+          preparedSample={
+            room.fixtureId === "judge-v1" || room.fixtureId.startsWith("water-")
+          }
           records={room.canvasOperations}
           roomSeq={room.roomSeq}
         />
@@ -678,21 +706,39 @@ export function App() {
               onSubmit={() => void submitHandwritingAttempt()}
               pendingOperations={pendingCount}
               submitting={submittingAnalysis}
+              templateId={isWaterRoom ? "water" : "bridge"}
             />
-            <ManualBridgePanel
-              disabled={
-                connection !== "connected" ||
-                room.attempts.some(
-                  (attempt) =>
-                    "mode" in attempt &&
-                    attempt.mode === "ai" &&
-                    attempt.status !== "complete" &&
-                    attempt.status !== "failed",
-                )
-              }
-              onSubmit={submitManualAttempt}
-              pendingOperations={pendingCount}
-            />
+            {isWaterRoom ? (
+              <ManualWaterPanel
+                disabled={
+                  connection !== "connected" ||
+                  room.attempts.some(
+                    (attempt) =>
+                      "mode" in attempt &&
+                      attempt.mode === "ai" &&
+                      attempt.status !== "complete" &&
+                      attempt.status !== "failed",
+                  )
+                }
+                onSubmit={submitManualWaterAttempt}
+                pendingOperations={pendingCount}
+              />
+            ) : (
+              <ManualBridgePanel
+                disabled={
+                  connection !== "connected" ||
+                  room.attempts.some(
+                    (attempt) =>
+                      "mode" in attempt &&
+                      attempt.mode === "ai" &&
+                      attempt.status !== "complete" &&
+                      attempt.status !== "failed",
+                  )
+                }
+                onSubmit={submitManualAttempt}
+                pendingOperations={pendingCount}
+              />
+            )}
           </>
         ) : (
           <section className="teacher-note-card">
@@ -743,10 +789,18 @@ export function App() {
                   </section>
                 }
               >
-                <BridgeSimulation
-                  run={run}
-                  sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
-                />
+                {run.templateId === "bridge" && (
+                  <BridgeSimulation
+                    run={run}
+                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+                  />
+                )}
+                {run.templateId === "water" && (
+                  <WaterSimulation
+                    run={run}
+                    sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+                  />
+                )}
               </Suspense>
               {achievement !== undefined && (
                 <AchievementCard award={achievement} />

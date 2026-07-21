@@ -92,6 +92,7 @@ if (
   attempt.media === null ||
   analysis?.result === null ||
   analysis?.result === undefined ||
+  !("deployedLengthMeters" in analysis.result.scenarioInputs) ||
   run === undefined
 ) {
   throw new Error(
@@ -101,6 +102,7 @@ if (
 if (
   analysis.result.scenarioInputs.fractionAsDecimal !== 0.34 ||
   analysis.result.scenarioInputs.deployedLengthMeters !== 4.08 ||
+  run.templateId !== "bridge" ||
   run.outcome.resultClass !== "bridge_far_too_short"
 ) {
   throw new Error("Production analysis extracted unexpected bridge inputs");

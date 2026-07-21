@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { z } from "zod";
 
 import { judgePreparedWrongOperations } from "../../../fixtures/judge-v1/fixture";
+import { WATER_PREPARED_OPERATIONS } from "../../../fixtures/water/packs";
 import type { WorkerEnv } from "../env";
 import { bearerToken, ROOM_HEADERS, RoomIdSchema } from "./rooms";
 
@@ -30,7 +31,11 @@ export function registerResetRoutes(app: Hono<AppBindings>): void {
       capability,
       idempotencyKey: request.data.idempotencyKey,
       initialCanvasOperations:
-        current.fixtureId === "judge-v1" ? judgePreparedWrongOperations : [],
+        current.fixtureId === "judge-v1"
+          ? judgePreparedWrongOperations
+          : current.fixtureId.startsWith("water-")
+            ? WATER_PREPARED_OPERATIONS
+            : [],
     });
     if (!result.ok) {
       return context.json(

@@ -1,16 +1,21 @@
 import { z } from "zod";
 
 import { bridgeRoomFixture } from "../../../fixtures/judge-v1/fixture";
+import type { WaterFixturePack } from "../../../fixtures/water/packs";
 import {
   SOLUTION_ANALYSIS_JSON_SCHEMA,
   SolutionAnalysisSchema,
+  WATER_SOLUTION_ANALYSIS_JSON_SCHEMA,
+  WaterSolutionAnalysisSchema,
   type AnalysisFailureCategory,
   type ValidatedBridgeAnalysis,
+  type ValidatedWaterAnalysis,
 } from "../../shared/analysis-types";
 import {
   semanticRepairMessage,
   validateBridgeAnalysis,
 } from "../../shared/validation/bridge-analysis";
+import { validateWaterAnalysis } from "../../shared/validation/water-analysis";
 
 const AiConfigurationSchema = z
   .object({
@@ -66,8 +71,10 @@ export type OpenAiSolutionRequest = {
   store: false;
   text: {
     format: {
-      name: "solution_analysis_v1";
-      schema: typeof SOLUTION_ANALYSIS_JSON_SCHEMA;
+      name: "solution_analysis_v1" | "water_solution_analysis_v1";
+      schema:
+        | typeof SOLUTION_ANALYSIS_JSON_SCHEMA
+        | typeof WATER_SOLUTION_ANALYSIS_JSON_SCHEMA;
       strict: true;
       type: "json_schema";
     };
@@ -79,14 +86,31 @@ ${bridgeRoomFixture.prompt}
 
 Return solution-analysis.v1. Transcribe visible work faithfully. For fractionAsDecimal, extract the learner's written decimal conversion, not a corrected value. For deployedLengthMeters, extract the learner's written multiplication result, not a recomputed value. Those two extracted numbers must reflect the same visible line of work. Use finalAnswers name deployedLengthMeters and normalize a visible meter unit to one of the schema values. Identify the likely first mathematical error without shaming the learner. Do not decide simulation correctness; deterministic code will check the extracted values. Use null for a value that is not visible. Mark the result ambiguous or unreadable when appropriate.`;
 
+function waterInstruction(fixture: WaterFixturePack): string {
+  return `Read only the learner handwriting in the image and interpret it for this exact task:
+${fixture.prompt}
+
+Return solution-analysis.v1. Transcribe visible work faithfully. Extract the learner's written flow rate, time, and final volume without correcting them. Use finalAnswers name volumeLiters and normalize a visible liter unit to one of the schema values. Identify the likely first mathematical error without shaming the learner. Do not decide simulation correctness; deterministic code will check the values against the curated task parameters. Use null for a value that is not visible. Mark the result ambiguous or unreadable when appropriate.`;
+}
+
 export function buildOpenAiSolutionRequest(input: {
   imageBase64: string;
   repairInstruction?: string;
   safetyIdentifier: string;
+  template?: "bridge" | "water";
+  waterFixture?: WaterFixturePack;
 }): OpenAiSolutionRequest {
+  const template = input.template ?? "bridge";
+  if (template === "water" && input.waterFixture === undefined) {
+    throw new Error("A curated water fixture is required");
+  }
+  const baseInstruction =
+    template === "water"
+      ? waterInstruction(input.waterFixture as WaterFixturePack)
+      : BASE_INSTRUCTION;
   const instruction = input.repairInstruction
-    ? `${BASE_INSTRUCTION}\n\n${input.repairInstruction}`
-    : BASE_INSTRUCTION;
+    ? `${baseInstruction}\n\n${input.repairInstruction}`
+    : baseInstruction;
   return {
     input: [
       {
@@ -108,8 +132,14 @@ export function buildOpenAiSolutionRequest(input: {
     store: false,
     text: {
       format: {
-        name: "solution_analysis_v1",
-        schema: SOLUTION_ANALYSIS_JSON_SCHEMA,
+        name:
+          template === "water"
+            ? "water_solution_analysis_v1"
+            : "solution_analysis_v1",
+        schema:
+          template === "water"
+            ? WATER_SOLUTION_ANALYSIS_JSON_SCHEMA
+            : SOLUTION_ANALYSIS_JSON_SCHEMA,
         strict: true,
         type: "json_schema",
       },
@@ -176,6 +206,26 @@ export type SolutionAnalysisRunResult =
       validationIssues?: string[];
     };
 
+export type WaterSolutionAnalysisRunResult =
+  | {
+      latencyMs: number;
+      modelId: string;
+      ok: true;
+      responseId: string;
+      usage: OpenAiUsage;
+      usedRepair: boolean;
+      validated: ValidatedWaterAnalysis;
+    }
+  | {
+      category: AnalysisFailureCategory;
+      diagnostic?: string;
+      latencyMs: number;
+      ok: false;
+      upstreamStatus?: number;
+      usedRepair: boolean;
+      validationIssues?: string[];
+    };
+
 class UpstreamFailure extends Error {
   constructor(
     readonly retriable: boolean,
@@ -222,6 +272,8 @@ async function requestOnce(input: {
   repairInstruction?: string;
   safetyIdentifier: string;
   signal: AbortSignal;
+  template?: "bridge" | "water";
+  waterFixture?: WaterFixturePack;
 }): Promise<{
   modelId: string;
   responseId: string;
@@ -352,6 +404,148 @@ export async function analyzeBridgeSolution(input: {
         }
         await input.onStage?.("validating");
         const semantic = validateBridgeAnalysis(schema.data);
+        if (semantic.ok) {
+          return {
+            latencyMs: Date.now() - startedAt,
+            modelId: response.modelId,
+            ok: true,
+            responseId: response.responseId,
+            usage: response.usage,
+            usedRepair,
+            validated: semantic.value,
+          };
+        }
+        if (attempt >= input.config.AI_MAX_RETRIES) {
+          return {
+            category: "semantic_invalid",
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            usedRepair,
+            validationIssues: semantic.issues,
+          };
+        }
+        repairInstruction = semanticRepairMessage(semantic.issues);
+        usedRepair = true;
+      } catch (error) {
+        const upstream =
+          error instanceof UpstreamFailure
+            ? error
+            : new UpstreamFailure(false, "upstream");
+        if (!upstream.retriable || attempt >= input.config.AI_MAX_RETRIES) {
+          return {
+            category: upstream.category,
+            ...(upstream.diagnostic === undefined
+              ? {}
+              : { diagnostic: upstream.diagnostic }),
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            ...(upstream.status === undefined
+              ? {}
+              : { upstreamStatus: upstream.status }),
+            usedRepair,
+          };
+        }
+        usedRepair = true;
+      }
+    }
+    return {
+      category: "upstream",
+      latencyMs: Date.now() - startedAt,
+      ok: false,
+      usedRepair,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function analyzeWaterSolution(input: {
+  config: AiConfiguration;
+  fetchImpl?: typeof fetch;
+  fixture: WaterFixturePack;
+  imageBase64: string;
+  onStage?: (
+    stage: "reading" | "extracting" | "validating",
+  ) => Promise<void> | void;
+  safetyIdentifier: string;
+}): Promise<WaterSolutionAnalysisRunResult> {
+  const startedAt = Date.now();
+  if (
+    input.config.AI_ENABLED !== "true" ||
+    input.config.OPENAI_API_KEY === undefined
+  ) {
+    return {
+      category: "ai_disabled",
+      latencyMs: 0,
+      ok: false,
+      usedRepair: false,
+    };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    input.config.AI_TIMEOUT_MS,
+  );
+  const fetchImpl: typeof fetch =
+    input.fetchImpl ?? ((resource, init) => globalThis.fetch(resource, init));
+  let repairInstruction: string | undefined;
+  let usedRepair = false;
+
+  try {
+    for (
+      let attempt = 0;
+      attempt <= input.config.AI_MAX_RETRIES;
+      attempt += 1
+    ) {
+      await input.onStage?.("reading");
+      try {
+        const response = await requestOnce({
+          apiKey: input.config.OPENAI_API_KEY,
+          fetchImpl,
+          imageBase64: input.imageBase64,
+          ...(repairInstruction === undefined ? {} : { repairInstruction }),
+          safetyIdentifier: input.safetyIdentifier,
+          signal: controller.signal,
+          template: "water",
+          waterFixture: input.fixture,
+        });
+        await input.onStage?.("extracting");
+        const schema = WaterSolutionAnalysisSchema.safeParse(response.result);
+        if (!schema.success) {
+          if (attempt >= input.config.AI_MAX_RETRIES) {
+            return {
+              category: "invalid_schema",
+              latencyMs: Date.now() - startedAt,
+              ok: false,
+              usedRepair,
+            };
+          }
+          repairInstruction =
+            "The prior result did not match the required strict water schema. Return every required field with no additional fields.";
+          usedRepair = true;
+          continue;
+        }
+        if (schema.data.verdict === "unreadable") {
+          return {
+            category: "unreadable",
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            usedRepair,
+          };
+        }
+        if (schema.data.verdict === "ambiguous") {
+          return {
+            category: "ambiguous",
+            latencyMs: Date.now() - startedAt,
+            ok: false,
+            usedRepair,
+          };
+        }
+        await input.onStage?.("validating");
+        const semantic = validateWaterAnalysis(
+          schema.data,
+          input.fixture.parameters,
+        );
         if (semantic.ok) {
           return {
             latencyMs: Date.now() - startedAt,

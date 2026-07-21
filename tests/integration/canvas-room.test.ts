@@ -217,6 +217,7 @@ describe("realtime canvas room", () => {
         inputs: { deployedLengthMeters: 4.08, fractionAsDecimal: 0.34 },
         previewAsStudent: false,
         sourceCanvasSeq: source.payload.seq,
+        templateId: "bridge",
       },
       requestId: "request-manual-attempt-one",
       type: "attempt.manual-capture",
@@ -259,6 +260,7 @@ describe("realtime canvas room", () => {
           inputs: { deployedLengthMeters: 9, fractionAsDecimal: 0.75 },
           previewAsStudent: false,
           sourceCanvasSeq: laterStroke.payload.seq,
+          templateId: "bridge",
         },
         requestId: "request-manual-attempt-two",
         type: "attempt.manual-capture",
@@ -289,7 +291,10 @@ describe("realtime canvas room", () => {
     expect(persisted.achievements).toHaveLength(2);
     expect(persisted.simulationRuns).toHaveLength(2);
     expect(persisted.attempts[0]?.sourceCanvasSeq).toBe(source.payload.seq);
-    expect(persisted.simulationRuns[0]?.inputs.deployedLengthMeters).toBe(4.08);
+    expect(persisted.simulationRuns[0]).toMatchObject({
+      inputs: { deployedLengthMeters: 4.08 },
+      templateId: "bridge",
+    });
     student.socket.close();
   });
 });

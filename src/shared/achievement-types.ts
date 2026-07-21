@@ -10,7 +10,14 @@ export const AchievementAwardSchema = z
     createdAt: z.string(),
     description: z.string().min(1).max(240),
     id: z.string().min(8).max(128),
-    key: z.enum(["fixed-it", "first-try-crossing", "worlds-shortest-bridge"]),
+    key: z.enum([
+      "fixed-it",
+      "first-try-crossing",
+      "worlds-shortest-bridge",
+      "tidal-surprise",
+      "perfect-pour",
+      "level-adjusted",
+    ]),
     roomSeq: z.number().int().positive(),
     title: z.string().min(1).max(100),
   })

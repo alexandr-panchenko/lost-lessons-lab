@@ -6,6 +6,10 @@ import {
   JUDGE_FIXTURE_ID,
   judgePreparedWrongOperations,
 } from "../../../fixtures/judge-v1/fixture";
+import {
+  DEFAULT_WATER_FIXTURE,
+  WATER_PREPARED_OPERATIONS,
+} from "../../../fixtures/water/packs";
 import type { RoomFeedEvent } from "../../shared/protocol";
 import type { WorkerEnv } from "../env";
 import {
@@ -28,7 +32,14 @@ export const ROOM_HEADERS = {
   "X-Content-Type-Options": "nosniff",
 } as const;
 
-function fixtureEvents(createdAt: string, judge: boolean): RoomFeedEvent[] {
+type RoomFixture = "bridge" | "judge" | "water";
+
+function fixtureEvents(
+  createdAt: string,
+  fixture: RoomFixture,
+): RoomFeedEvent[] {
+  const selected =
+    fixture === "water" ? DEFAULT_WATER_FIXTURE : bridgeRoomFixture;
   return [
     {
       createdAt,
@@ -45,7 +56,10 @@ function fixtureEvents(createdAt: string, judge: boolean): RoomFeedEvent[] {
       createdAt,
       payload: {
         prompt: "What does your learner struggle with?",
-        supportedSkills: [...bridgeRoomFixture.supportedSkills],
+        supportedSkills:
+          fixture === "water"
+            ? ["Volume", "Flow rate", "Measurement"]
+            : [...bridgeRoomFixture.supportedSkills],
       },
       seq: 2,
       type: "teacher.setup",
@@ -54,12 +68,15 @@ function fixtureEvents(createdAt: string, judge: boolean): RoomFeedEvent[] {
     {
       createdAt,
       payload: {
-        fixtureLabel: judge
-          ? bridgeRoomFixture.fixtureLabel
-          : "Recommended starting point",
-        prompt: bridgeRoomFixture.prompt,
-        skillLabel: bridgeRoomFixture.skillLabel,
-        taskTitle: bridgeRoomFixture.taskTitle,
+        fixtureLabel:
+          fixture === "judge"
+            ? bridgeRoomFixture.fixtureLabel
+            : fixture === "water"
+              ? selected.fixtureLabel
+              : "Recommended starting point",
+        prompt: selected.prompt,
+        skillLabel: selected.skillLabel,
+        taskTitle: selected.taskTitle,
       },
       seq: 3,
       type: "task.preview",
@@ -79,7 +96,7 @@ async function applyRoomCreationLimit(
 
 async function createRoom(
   context: Context<AppBindings>,
-  judge: boolean,
+  fixture: RoomFixture,
 ): Promise<Response> {
   if (!(await applyRoomCreationLimit(context))) {
     return context.json(
@@ -110,13 +127,22 @@ async function createRoom(
   const room = context.env.ROOMS.getByName(roomId);
   await room.initialize(
     {
-      fixtureId: judge ? JUDGE_FIXTURE_ID : "guided-room-v1",
+      fixtureId:
+        fixture === "judge"
+          ? JUDGE_FIXTURE_ID
+          : fixture === "water"
+            ? DEFAULT_WATER_FIXTURE.fixtureId
+            : "guided-room-v1",
       roomId,
       studentCapabilityHash,
       teacherCapabilityHash,
     },
-    fixtureEvents(createdAt, judge),
-    judge ? judgePreparedWrongOperations : [],
+    fixtureEvents(createdAt, fixture),
+    fixture === "judge"
+      ? judgePreparedWrongOperations
+      : fixture === "water"
+        ? WATER_PREPARED_OPERATIONS
+        : [],
   );
 
   return new Response(null, {
@@ -137,8 +163,9 @@ export function bearerToken(value: string | undefined): string | null {
 }
 
 export function registerRoomRoutes(app: Hono<AppBindings>): void {
-  app.get("/", (context) => createRoom(context, false));
-  app.get("/judge", (context) => createRoom(context, true));
+  app.get("/", (context) => createRoom(context, "bridge"));
+  app.get("/judge", (context) => createRoom(context, "judge"));
+  app.get("/water", (context) => createRoom(context, "water"));
 
   app.get("/api/rooms/:roomId/bootstrap", async (context) => {
     const roomId = RoomIdSchema.safeParse(context.req.param("roomId"));

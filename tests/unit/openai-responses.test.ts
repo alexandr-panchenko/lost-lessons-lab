@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   analyzeBridgeSolution,
+  analyzeWaterSolution,
   buildOpenAiSolutionRequest,
   parseAiConfiguration,
 } from "../../src/worker/ai/openai-responses";
+import { DEFAULT_WATER_FIXTURE } from "../../fixtures/water/packs";
 import { wrongBridgeAnalysis } from "../fixtures/openai/solution-results";
 
 const config = parseAiConfiguration({
@@ -43,6 +45,52 @@ function refusalResponse(): Response {
 }
 
 describe("GPT-5.6 Responses boundary", () => {
+  it("uses the strict water schema and validates the shared water contract", async () => {
+    const waterAnalysis = {
+      confidence: 0.94,
+      finalAnswers: [{ name: "volumeLiters", unit: "L", value: 15 }],
+      firstError: null,
+      scenarioInputs: {
+        flowRateLitersPerMinute: 3,
+        timeMinutes: 5,
+        volumeLiters: 15,
+      },
+      schemaVersion: "solution-analysis.v1",
+      steps: [
+        {
+          normalizedExpression: "3 * 5 = 15",
+          regionId: "line-1",
+          status: "valid",
+          text: "3 × 5 = 15 L",
+        },
+      ],
+      studentFacingExplanation: "The rate times the time gives 15 liters.",
+      transcription: "3 L/min × 5 min = 15 L",
+      verdict: "correct",
+    } as const;
+    const request = buildOpenAiSolutionRequest({
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+      template: "water",
+      waterFixture: DEFAULT_WATER_FIXTURE,
+    });
+    expect(request.text.format.name).toBe("water_solution_analysis_v1");
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      modelResponse(waterAnalysis),
+    );
+    const result = await analyzeWaterSolution({
+      config,
+      fetchImpl,
+      fixture: DEFAULT_WATER_FIXTURE,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      validated: { outcome: { resultClass: "water_correct" } },
+    });
+  });
+
   it("uses a private strict request with a high-detail PNG", () => {
     const request = buildOpenAiSolutionRequest({
       imageBase64: "aW1hZ2U=",

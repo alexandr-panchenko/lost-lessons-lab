@@ -15,6 +15,7 @@ import {
   AnalysisStatusSchema,
   AttemptMediaSchema,
   SolutionAnalysisSchema,
+  WaterSolutionAnalysisSchema,
   type AiAttempt,
   type AnalysisRecord,
   type AnalysisStatus,
@@ -29,6 +30,10 @@ import {
   classifyBridgeInput,
   HERO_BRIDGE_PARAMETERS,
 } from "../../shared/domain/bridge";
+import {
+  WaterSimulationInputsSchema,
+  classifyWaterInput,
+} from "../../shared/domain/water";
 import {
   ManualAttemptSchema,
   RoomFeedEventSchema,
@@ -46,6 +51,8 @@ import {
 } from "../../shared/protocol";
 import type { WorkerEnv } from "../env";
 import { bridgeAchievement } from "../domain/achievements";
+import { waterAchievement } from "../domain/water-achievements";
+import { waterFixtureById } from "../../../fixtures/water/packs";
 import {
   constantTimeEqual,
   deriveStudentCapability,
@@ -185,6 +192,19 @@ const CompleteAiAttemptSchema = z
   })
   .strict();
 
+const CompleteWaterAiAttemptSchema = z
+  .object({
+    analysis: WaterSolutionAnalysisSchema,
+    attemptId: z.string().min(8).max(128),
+    disagreement: z.boolean(),
+    inputs: WaterSimulationInputsSchema,
+    latencyMs: z.number().int().nonnegative(),
+    modelId: z.string().min(1).max(80),
+    responseId: z.string().min(1).max(160),
+    usedRepair: z.boolean(),
+  })
+  .strict();
+
 export class RoomDurableObject extends DurableObject<WorkerEnv> {
   constructor(ctx: DurableObjectState, env: WorkerEnv) {
     super(ctx, env);
@@ -312,6 +332,10 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     }
 
     const createdAt = new Date().toISOString();
+    const taskId =
+      waterFixtureById(meta.fixture_id) === undefined
+        ? "bridge-task-v1"
+        : "water-task-v1";
     let roomSeq = 0;
     try {
       this.ctx.storage.transactionSync(() => {
@@ -320,9 +344,10 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
           `INSERT INTO analysis_attempts (
             id, idempotency_key, task_id, author_id, source_canvas_seq,
             status, room_seq, media_id, created_at
-          ) VALUES (?, ?, 'bridge-task-v1', ?, ?, 'uploading', ?, NULL, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, 'uploading', ?, NULL, ?)`,
           attemptId,
           value.idempotencyKey,
+          taskId,
           value.authorId,
           value.sourceCanvasSeq,
           roomSeq,
@@ -452,7 +477,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     const achievement = bridgeAchievement({
       attemptId: value.attemptId,
       createdAt: completedAt,
-      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt(),
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt("bridge"),
       outcome,
       roomSeq: this.nextSequence(),
     });
@@ -502,6 +527,100 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     const run = this.simulationRunForAttempt(value.attemptId);
     if (attempt === null || analysis === null || run === null) {
       throw new Error("Completed analysis state was not persisted");
+    }
+    this.broadcast({
+      payload: { achievement, analysis, attempt, run },
+      type: "analysis.completed",
+      v: 1,
+    });
+    return { achievement, analysis, attempt, run };
+  }
+
+  completeWaterAiAttempt(input: z.input<typeof CompleteWaterAiAttemptSchema>): {
+    achievement: AchievementAward;
+    analysis: AnalysisRecord;
+    attempt: AiAttempt;
+    run: Extract<SimulationRun, { templateId: "water" }>;
+  } {
+    const value = CompleteWaterAiAttemptSchema.parse(input);
+    const current = this.analysisAttemptById(value.attemptId);
+    const meta = this.roomMeta();
+    const fixture =
+      meta === null ? undefined : waterFixtureById(meta.fixture_id);
+    if (
+      current === null ||
+      current.media === null ||
+      current.taskId !== "water-task-v1" ||
+      fixture === undefined
+    ) {
+      throw new Error("Water analysis attempt, media, or fixture is missing");
+    }
+    if (current.status === "complete" || current.status === "failed") {
+      throw new Error("Water analysis attempt is already terminal");
+    }
+    const outcome = classifyWaterInput(fixture.parameters, value.inputs);
+    const completedAt = new Date().toISOString();
+    const runId = `run_${crypto.randomUUID()}`;
+    const randomSeed = crypto.randomUUID();
+    let roomSeq = 0;
+    const achievement = waterAchievement({
+      attemptId: value.attemptId,
+      createdAt: completedAt,
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt("water"),
+      outcome,
+      roomSeq: this.nextSequence(),
+    });
+    this.ctx.storage.transactionSync(() => {
+      roomSeq = this.nextSequence();
+      this.ctx.storage.sql.exec(
+        "UPDATE analysis_attempts SET status = 'complete', room_seq = ? WHERE id = ?",
+        roomSeq,
+        value.attemptId,
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT INTO analysis_results (
+          attempt_id, result_json, failure_category, disagreement, model_id,
+          response_id, latency_ms, used_repair, completed_at
+        ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+        value.attemptId,
+        JSON.stringify(value.analysis),
+        value.disagreement ? 1 : 0,
+        value.modelId,
+        value.responseId,
+        value.latencyMs,
+        value.usedRepair ? 1 : 0,
+        completedAt,
+      );
+      this.insertAchievement(achievement);
+      this.ctx.storage.sql.exec(
+        `INSERT INTO simulation_runs (
+          id, attempt_id, room_seq, template_id, template_version,
+          inputs_json, outcome_json, presentation_variant, random_seed, created_at
+        ) VALUES (?, ?, ?, 'water', 1, ?, ?, 'tank-splash-v1', ?, ?)`,
+        runId,
+        value.attemptId,
+        roomSeq,
+        JSON.stringify(value.inputs),
+        JSON.stringify(outcome),
+        randomSeed,
+        completedAt,
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+        roomSeq + 1,
+      );
+    });
+    this.releaseAttemptProcessingLock(value.attemptId);
+    const attempt = this.analysisAttemptById(value.attemptId);
+    const analysis = this.analysisForAttempt(value.attemptId);
+    const run = this.simulationRunForAttempt(value.attemptId);
+    if (
+      attempt === null ||
+      analysis === null ||
+      run === null ||
+      run.templateId !== "water"
+    ) {
+      throw new Error("Completed water analysis state was not persisted");
     }
     this.broadcast({
       payload: { achievement, analysis, attempt, run },
@@ -975,6 +1094,14 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       { type: "attempt.manual-capture" }
     >,
   ): void {
+    if (message.payload.templateId === "water") {
+      this.captureManualWaterAttempt(socket, attachment, message);
+      return;
+    }
+    if (waterFixtureById(this.roomMeta()?.fixture_id ?? "") !== undefined) {
+      this.rejectCommand(socket, message.requestId, "invalid_command");
+      return;
+    }
     if (attachment.role === "teacher" && !message.payload.previewAsStudent) {
       this.rejectCommand(socket, message.requestId, "permission_denied");
       return;
@@ -1024,7 +1151,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     const achievement = bridgeAchievement({
       attemptId,
       createdAt,
-      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt(),
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt("bridge"),
       outcome,
       roomSeq: this.nextSequence(),
     });
@@ -1089,6 +1216,149 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       randomSeed,
       roomSeq,
       templateId: "bridge",
+      templateVersion: 1,
+    });
+    this.ack(
+      socket,
+      message.requestId,
+      message.payload.idempotencyKey,
+      roomSeq,
+      false,
+    );
+    this.broadcast({
+      payload: { achievement, attempt, run },
+      type: "simulation.launch",
+      v: 1,
+    });
+  }
+
+  private captureManualWaterAttempt(
+    socket: WebSocket,
+    attachment: SocketAttachment,
+    message: Extract<
+      SocketAuthenticatedMessage,
+      { type: "attempt.manual-capture" }
+    >,
+  ): void {
+    if (message.payload.templateId !== "water") {
+      this.rejectCommand(socket, message.requestId, "invalid_command");
+      return;
+    }
+    const meta = this.roomMeta();
+    const fixture =
+      meta === null ? undefined : waterFixtureById(meta.fixture_id);
+    if (fixture === undefined) {
+      this.rejectCommand(socket, message.requestId, "invalid_command");
+      return;
+    }
+    if (attachment.role === "teacher" && !message.payload.previewAsStudent) {
+      this.rejectCommand(socket, message.requestId, "permission_denied");
+      return;
+    }
+    const duplicateRow = this.ctx.storage.sql
+      .exec<{ id: string }>(
+        "SELECT id FROM attempts WHERE idempotency_key = ?",
+        message.payload.idempotencyKey,
+      )
+      .toArray()[0];
+    if (duplicateRow !== undefined) {
+      const attempt = this.attemptsById([duplicateRow.id])[0];
+      const run = this.simulationRunForAttempt(duplicateRow.id);
+      const achievement = this.achievementForAttempt(duplicateRow.id);
+      if (attempt !== undefined && run !== null && achievement !== null) {
+        this.ack(
+          socket,
+          message.requestId,
+          message.payload.idempotencyKey,
+          run.roomSeq,
+          true,
+        );
+        this.send(socket, {
+          payload: { achievement, attempt, run },
+          type: "simulation.launch",
+          v: 1,
+        });
+      }
+      return;
+    }
+    if (!this.validStudentCutoff(message.payload.sourceCanvasSeq)) {
+      this.rejectCommand(socket, message.requestId, "stale_canvas_sequence");
+      return;
+    }
+    const outcome = classifyWaterInput(
+      fixture.parameters,
+      message.payload.inputs,
+    );
+    const attemptId = `at_${crypto.randomUUID()}`;
+    const runId = `run_${crypto.randomUUID()}`;
+    const createdAt = new Date().toISOString();
+    const randomSeed = crypto.randomUUID();
+    let roomSeq = 0;
+    const achievement = waterAchievement({
+      attemptId,
+      createdAt,
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt("water"),
+      outcome,
+      roomSeq: this.nextSequence(),
+    });
+    if (!this.acquireAttemptProcessingLock(attemptId)) {
+      this.rejectCommand(socket, message.requestId, "attempt_in_progress");
+      return;
+    }
+    try {
+      this.ctx.storage.transactionSync(() => {
+        roomSeq = this.nextSequence();
+        this.ctx.storage.sql.exec(
+          `INSERT INTO attempts (
+            id, idempotency_key, task_id, author_id,
+            source_canvas_seq, status, created_at
+          ) VALUES (?, ?, 'water-task-v1', ?, ?, 'completed', ?)`,
+          attemptId,
+          message.payload.idempotencyKey,
+          attachment.clientId,
+          message.payload.sourceCanvasSeq,
+          createdAt,
+        );
+        this.ctx.storage.sql.exec(
+          `INSERT INTO simulation_runs (
+            id, attempt_id, room_seq, template_id, template_version,
+            inputs_json, outcome_json, presentation_variant, random_seed, created_at
+          ) VALUES (?, ?, ?, 'water', 1, ?, ?, 'tank-splash-v1', ?, ?)`,
+          runId,
+          attemptId,
+          roomSeq,
+          JSON.stringify(message.payload.inputs),
+          JSON.stringify(outcome),
+          randomSeed,
+          createdAt,
+        );
+        this.insertAchievement(achievement);
+        this.ctx.storage.sql.exec(
+          "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+          roomSeq + 1,
+        );
+      });
+    } finally {
+      this.releaseAttemptProcessingLock(attemptId);
+    }
+    const attempt = ManualAttemptSchema.parse({
+      authorId: attachment.clientId,
+      createdAt,
+      id: attemptId,
+      sourceCanvasSeq: message.payload.sourceCanvasSeq,
+      status: "completed",
+      taskId: "water-task-v1",
+    });
+    const run = SimulationRunSchema.parse({
+      attemptId,
+      createdAt,
+      id: runId,
+      inputs: message.payload.inputs,
+      outcome,
+      presentationVariant: "tank-splash-v1",
+      randomSeed,
+      roomSeq,
+      templateId: "water",
       templateVersion: 1,
     });
     this.ack(
@@ -1479,9 +1749,10 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     });
   }
 
-  private hasPriorIncorrectAttempt(): boolean {
+  private hasPriorIncorrectAttempt(templateId: "bridge" | "water"): boolean {
     return this.simulationRuns().some(
-      (run) => !run.outcome.isMathematicallyCorrect,
+      (run) =>
+        run.templateId === templateId && !run.outcome.isMathematicallyCorrect,
     );
   }
 

@@ -3,8 +3,10 @@ import { z } from "zod";
 
 import {
   analyzeBridgeSolution,
+  analyzeWaterSolution,
   parseAiConfiguration,
 } from "../ai/openai-responses";
+import { waterFixtureById } from "../../../fixtures/water/packs";
 import type { WorkerEnv } from "../env";
 import { AttemptUploadSchema, validatePngUpload } from "../media/png";
 import { logAnalysisMetadata } from "../security/logging";
@@ -49,18 +51,26 @@ async function runAnalysis(input: {
     import("../room/RoomDurableObject").RoomDurableObject
   >;
   roomId: string;
+  fixtureId: string;
 }): Promise<void> {
   const hashedRoom = await roomHash(input.roomId);
   try {
-    const result = await analyzeBridgeSolution({
+    const waterFixture = waterFixtureById(input.fixtureId);
+    const shared = {
       config: input.config,
       imageBase64: input.imageBase64,
-      onStage: async (stage) => {
+      onStage: async (stage: "reading" | "extracting" | "validating") => {
         await input.room.setAnalysisStatus(input.attemptId, stage);
       },
       safetyIdentifier: `room_${hashedRoom}`,
-    });
-    if (!result.ok) {
+    };
+    const recordFailure = async (result: {
+      category: import("../../shared/analysis-types").AnalysisFailureCategory;
+      diagnostic?: string;
+      latencyMs: number;
+      upstreamStatus?: number;
+      usedRepair: boolean;
+    }) => {
       await input.room.failAiAttempt({
         attemptId: input.attemptId,
         category: result.category,
@@ -81,28 +91,63 @@ async function runAnalysis(input: {
           : { upstreamStatus: result.upstreamStatus }),
         usedRepair: result.usedRepair,
       });
-      return;
+    };
+    if (waterFixture !== undefined) {
+      const result = await analyzeWaterSolution({
+        ...shared,
+        fixture: waterFixture,
+      });
+      if (!result.ok) {
+        await recordFailure(result);
+        return;
+      }
+      await input.room.setAnalysisStatus(input.attemptId, "preparing");
+      await input.room.completeWaterAiAttempt({
+        analysis: result.validated.analysis,
+        attemptId: input.attemptId,
+        disagreement: result.validated.disagreement,
+        inputs: result.validated.inputs,
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        usedRepair: result.usedRepair,
+      });
+      logAnalysisMetadata({
+        attemptId: input.attemptId,
+        event: "analysis.completed",
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        roomHash: hashedRoom,
+        usedRepair: result.usedRepair,
+      });
+    } else {
+      const result = await analyzeBridgeSolution(shared);
+      if (!result.ok) {
+        await recordFailure(result);
+        return;
+      }
+      await input.room.setAnalysisStatus(input.attemptId, "preparing");
+      await input.room.completeAiAttempt({
+        analysis: result.validated.analysis,
+        attemptId: input.attemptId,
+        disagreement: result.validated.disagreement,
+        inputs: result.validated.inputs,
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        usedRepair: result.usedRepair,
+      });
+      logAnalysisMetadata({
+        attemptId: input.attemptId,
+        event: "analysis.completed",
+        latencyMs: result.latencyMs,
+        modelId: result.modelId,
+        responseId: result.responseId,
+        roomHash: hashedRoom,
+        usedRepair: result.usedRepair,
+      });
     }
-    await input.room.setAnalysisStatus(input.attemptId, "preparing");
-    await input.room.completeAiAttempt({
-      analysis: result.validated.analysis,
-      attemptId: input.attemptId,
-      disagreement: result.validated.disagreement,
-      inputs: result.validated.inputs,
-      latencyMs: result.latencyMs,
-      modelId: result.modelId,
-      responseId: result.responseId,
-      usedRepair: result.usedRepair,
-    });
-    logAnalysisMetadata({
-      attemptId: input.attemptId,
-      event: "analysis.completed",
-      latencyMs: result.latencyMs,
-      modelId: result.modelId,
-      responseId: result.responseId,
-      roomHash: hashedRoom,
-      usedRepair: result.usedRepair,
-    });
   } catch {
     try {
       await input.room.failAiAttempt({
@@ -182,6 +227,10 @@ async function captureAttempt(
   }
 
   const room = context.env.ROOMS.getByName(roomId.data);
+  const snapshot = await room.bootstrap(capability);
+  if (snapshot === null) {
+    return context.json({ error: "unauthorized" }, 401, ROOM_HEADERS);
+  }
   const begun = await room.beginAiAttempt({
     authorId: upload.data.authorId,
     capability,
@@ -235,6 +284,7 @@ async function captureAttempt(
       runAnalysis({
         attemptId: attempt.id,
         config,
+        fixtureId: snapshot.fixtureId,
         imageBase64: upload.data.mediaBase64,
         room,
         roomId: roomId.data,

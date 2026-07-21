@@ -3,11 +3,13 @@ export function AnalysisSubmitPanel({
   onSubmit,
   pendingOperations,
   submitting,
+  templateId,
 }: {
   disabled: boolean;
   onSubmit: () => void;
   pendingOperations: number;
   submitting: boolean;
+  templateId: "bridge" | "water";
 }) {
   return (
     <section
@@ -16,7 +18,9 @@ export function AnalysisSubmitPanel({
     >
       <div>
         <p className="feed-card__label">GPT-5.6 handwriting interpretation</p>
-        <h2 id="analysis-submit-title">Let the math control the bridge</h2>
+        <h2 id="analysis-submit-title">
+          Let the math control the {templateId === "water" ? "water" : "bridge"}
+        </h2>
         <p>
           Submit only the solid learner layer. The AI reads the handwriting;
           deterministic code checks every value before physics starts.
