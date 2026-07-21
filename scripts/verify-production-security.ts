@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-const productionOrigin = z.url().parse(process.env.PRODUCTION_URL);
+const productionOrigin = z
+  .url()
+  .parse(
+    process.env.PRODUCTION_URL ??
+      "https://lost-lessons-lab.sanocks.workers.dev",
+  );
 const redirect = await fetch(new URL("/judge", productionOrigin), {
   redirect: "manual",
 });
