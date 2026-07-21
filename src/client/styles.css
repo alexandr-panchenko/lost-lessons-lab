@@ -789,6 +789,14 @@ blockquote {
   text-align: center;
 }
 
+.renderer-fallback--notice {
+  position: static;
+  margin: 0;
+  padding: 0.75rem clamp(1rem, 3vw, 1.5rem);
+  border: 0;
+  border-bottom: 1px solid #d5dbe2;
+}
+
 .simulation-controls {
   padding-top: 1rem;
   border-bottom: 1px solid #d5dbe2;

@@ -225,7 +225,7 @@ export function BridgeSimulation({
         )}
       </div>
       {quality.lowDetail && !rendererError && (
-        <p className="renderer-fallback">
+        <p className="renderer-fallback renderer-fallback--notice">
           Low-detail rendering is active. The physics and verified result are
           unchanged.
         </p>

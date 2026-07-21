@@ -67,3 +67,26 @@ test("a renderer failure keeps the verified transcript and retry control", async
   ).toBeVisible();
   await expect(page.getByText(/4\.08 meter bridge ends before/u)).toBeVisible();
 });
+
+test("the low-detail notice stays in flow and leaves room controls usable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "hardwareConcurrency", {
+      configurable: true,
+      value: 2,
+    });
+  });
+  await page.goto("/judge");
+  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page.getByLabel("Bridge length").fill("4.08");
+  await page.getByRole("button", { name: "Run manual value" }).click();
+
+  const notice = page.getByText("Low-detail rendering is active", {
+    exact: false,
+  });
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveCSS("position", "static");
+  await page.getByRole("button", { name: "Reset current task" }).click();
+  await expect(page.locator(".simulation-card")).toHaveCount(0);
+});

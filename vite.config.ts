@@ -6,5 +6,10 @@ export default defineConfig({
   optimizeDeps: {
     include: ["pixi.js/unsafe-eval"],
   },
-  plugins: [react(), cloudflare()],
+  plugins: [
+    react(),
+    cloudflare({
+      persistState: process.env.E2E_ISOLATED_STATE === "1" ? false : true,
+    }),
+  ],
 });

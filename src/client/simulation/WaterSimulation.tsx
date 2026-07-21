@@ -227,7 +227,7 @@ export function WaterSimulation({
         )}
       </div>
       {quality.lowDetail && !rendererError && (
-        <p className="renderer-fallback">
+        <p className="renderer-fallback renderer-fallback--notice">
           Low-detail rendering is active. Physics bodies and the verified result
           are unchanged.
         </p>

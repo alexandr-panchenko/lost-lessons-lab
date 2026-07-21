@@ -21,7 +21,7 @@ export default defineConfig({
   ...(externalBaseURL === undefined
     ? {
         webServer: {
-          command: "bun run dev -- --host 127.0.0.1",
+          command: "E2E_ISOLATED_STATE=1 bun run dev -- --host 127.0.0.1",
           reuseExistingServer: !process.env.CI,
           stderr: "pipe",
           stdout: "pipe",
