@@ -44,8 +44,14 @@ export function LearningFeed({
                 <div className="skill-list" aria-label="Supported skills">
                   {event.payload.supportedSkills.map((skill) => (
                     <Fragment key={skill}>
-                      {skill === "Water and volume" ? (
-                        <a className="skill-chip" href="/water">
+                      {skill === "Water and volume" ||
+                      skill === "Speed and collision" ? (
+                        <a
+                          className="skill-chip"
+                          href={
+                            skill === "Water and volume" ? "/water" : "/speed"
+                          }
+                        >
                           {skill}
                         </a>
                       ) : (

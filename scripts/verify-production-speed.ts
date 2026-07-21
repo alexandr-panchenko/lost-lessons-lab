@@ -47,7 +47,9 @@ try {
   await page.getByLabel("Final travel distance").fill("36");
   await page.getByRole("button", { name: "Run shuttle value" }).click();
   await page.getByRole("heading", { name: "Soft bumper boop" }).waitFor();
-  await page.getByRole("heading", { name: "Bumper Boop" }).waitFor();
+  await page
+    .getByRole("heading", { exact: true, name: "Bumper Boop" })
+    .waitFor();
   const requestsBeforeReplay = aiRequests;
   await page.getByRole("button", { name: "Replay" }).last().click();
   if (aiRequests !== requestsBeforeReplay)

@@ -11,7 +11,10 @@ test("speed values drive short, collision, and correct motion scenes", async ({
       attemptRequests.push(request.url());
     }
   });
-  await page.goto("/speed");
+  await page.goto("/");
+  const speedSkill = page.getByRole("link", { name: "Speed and collision" });
+  await expect(speedSkill).toHaveAttribute("href", "/speed");
+  await speedSkill.click();
   await expect(
     page.getByRole("heading", { name: "Guide the lab shuttle" }),
   ).toBeVisible();
