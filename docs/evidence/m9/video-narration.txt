@@ -1,0 +1,13 @@
+A learner wrote that three quarters equals zero point three four. In Lost Lessons Lab, that number does not receive a red mark and disappear. It builds a bridge that is genuinely too short.
+
+Lost Lessons Lab is a no-login shared tutoring room. A tutor identifies one precise math gap, and the learner solves a real problem in free-form handwriting.
+
+GPT-5.6 reads the student-only canvas, reconstructs the visible steps, extracts zero point three four and four point zero eight meters, and explains that the first error is the fraction conversion. The interpretation stays visible in the learning feed.
+
+The model never grades the answer or writes simulation code. Strict structured output and deterministic TypeScript validators check the arithmetic, units, ranges, and template contract before the values reach a real PixiJS and Planck physics scene.
+
+The learner corrects three quarters to zero point seven five and calculates nine meters. The same pipeline reads the new work, the bridge spans the ravine, and the progress achievement describes the action without claiming mastery.
+
+Teacher annotations synchronize in real time on a separate layer and never enter learner analysis. Replay makes no new model call, reload restores the room, and a deterministic manual form keeps the physics usable if AI fails.
+
+Codex built and verified the project milestone by milestone from a frozen human-owned design: Cloudflare Workers, a SQLite Durable Object, private R2 media, strict validation, accessible controls, and production tests. The learner's math is the controller. The simulation is evidence.

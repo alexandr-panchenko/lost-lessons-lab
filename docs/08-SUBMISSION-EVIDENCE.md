@@ -31,6 +31,7 @@ Do not use:
 | Judge URL | `https://lost-lessons-lab.sanocks.workers.dev/judge` | PASS for complete M5 hero |
 | Repository URL | `https://github.com/alexandr-panchenko/lost-lessons-lab` | PASS |
 | Public video URL | pending | PENDING |
+| Local video upload candidate | `artifacts/submission/lost-lessons-lab-demo.mp4`; 1:41.95; SHA-256 `d48a1b2edb74cac0eca3fc7cbf870f245cfed61c36ac8b19f9e0119c511eefa6` | PASS locally; public upload pending |
 | Submission commit | pending | PENDING |
 | Submission tag | `build-week-submission` pending | PENDING |
 | Cloudflare deployment/version | M8 final `968d9590-25e6-4a6d-8ea6-e6b12febb9be` from commit `951c978` | PASS through M8 |
@@ -163,7 +164,7 @@ Do not claim measured learning improvement without a study.
 
 | Claim | Evidence needed | Status |
 |---|---|---|
-| “The math is the controller” is clearly demonstrated | Hero video and varying submitted lengths | PENDING |
+| “The math is the controller” is clearly demonstrated | Local 1:41.95 candidate at 0:00–1:41; production capture and varying submitted lengths; public URL pending | PASS locally; submission-wide proof pending upload |
 | Error itself becomes a memorable experiment | `docs/evidence/m5/hero-wrong-to-correct.png`; disaster/progress achievement tests | PASS |
 | AI use is necessary rather than decorative | Two-image live eval; strict structured interpretation card; teacher-layer exclusion tests | PASS |
 | The product is not a generic worksheet or physics game | Persistent teacher context, learner canvas, causal explanation, and math-only simulation inputs in final production path | PASS |
@@ -235,16 +236,26 @@ Final script must reference real behavior. Suggested evidence markers to replace
 
 | Segment | Target evidence | Final timestamp |
 |---|---|---|
-| Hook | Short bridge failure | pending |
-| Problem | Tutor identifies fraction gap | pending |
-| Input | Free-form handwriting canvas | pending |
-| GPT-5.6 | Structured interpretation and likely error | pending |
-| Physics | Submitted value changes bridge length | pending |
-| Correction | `0.75`, `9 m` | pending |
-| Success | Crossing and progress award | pending |
-| Collaboration | Teacher annotation visible to learner | pending |
-| Reliability | Manual fallback or replay/reset | pending |
-| Codex | Milestone/repository evidence | pending |
+| Hook | `3/4 = 0.34` points to the short bridge | 0:00–0:11 |
+| Problem | No-login shared tutoring room and precise gap | 0:11–0:21 |
+| Input | Free-form prepared learner canvas | 0:11–0:26 |
+| GPT-5.6 | Structured interpretation and likely error | 0:21–0:38 |
+| Physics | Submitted value changes real bridge geometry | 0:38–0:54 |
+| Correction | `0.75`, `9 m` | 0:54–1:08 |
+| Success | Crossing and progress award | 1:08–1:22 |
+| Collaboration | Separate teacher layer shown and explained | 1:08–1:15 |
+| Reliability | Replay, reload, and manual fallback explained | 1:08–1:22 |
+| Codex | Milestone workflow and deployed architecture explained | 1:22–1:41 |
+
+The upload candidate was recorded page-only from Cloudflare version
+`968d9590-25e6-4a6d-8ea6-e6b12febb9be` by
+`scripts/capture-submission-video.ts`. It made exactly two real analysis
+requests. `scripts/build-submission-video.sh` produced a 1280×720 H.264/AAC MP4
+with an embedded English `mov_text` caption stream and a matching `.srt`
+sidecar. `ffprobe` measured 101.950 seconds and 3,793,357 bytes. Sampled frames,
+the title/end frames, binary string scan, narration, and captions were inspected;
+no capability, secret, URL token, or personal data was found. Public YouTube
+upload and incognito playback remain owner-controlled.
 
 ## Evidence collection procedure
 

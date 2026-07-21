@@ -260,16 +260,15 @@ Expected result:
 - recognition and explanation remain visible;
 - no login, payment, or user API key is required.
 
-# Thumbnail and image plan
+# Thumbnail and image package
 
-## Recommended thumbnail
+## Final thumbnail
 
-A clean 3:2 frame:
-
-- left: handwritten `3/4 = 0.34`;
-- center: a bright red causal arrow or visual connection;
-- right: a bridge ending halfway over a comic ravine with the rescue character;
-- short title: **“Your math changes the world.”**
+`docs/evidence/m9/submission-thumbnail.png` is a 1536×1024 submission-only
+illustration. It shows handwritten `3/4 = 0.34`, a bright causal arrow, a bridge
+ending over a friendly ravine, and a safe rescue vehicle. Exact provenance and
+the generation brief are recorded in
+`docs/evidence/m9/thumbnail-provenance.md`.
 
 Avoid:
 
@@ -293,93 +292,29 @@ Avoid:
 9. Any finished supporting simulation.
 10. Responsive phone/tablet feed.
 
-# Provisional video script
+# Final video package
 
-> Rewrite after the final product exists. Target about 2:00–2:20 and never exceed 3:00.
+The upload candidate is 1:41.95 and lives at the ignored owner handoff path
+`artifacts/submission/lost-lessons-lab-demo.mp4`. It contains page-only footage
+from the verified production runtime, English narration from
+`docs/evidence/m9/video-narration.txt`, an embedded caption track, and
+`artifacts/submission/lost-lessons-lab-demo.en.srt` for YouTube upload.
 
-## 0:00–0:08 — Hook
-
-**Visual:** The `4.08 m` bridge ends early; the rescue vehicle falls into the safe comic recovery area.
-
-**Voice:**
-
-> This bridge failed because a learner wrote that three quarters equals 0.34. In Lost Lessons Lab, the math is the controller.
-
-## 0:08–0:24 — Problem
-
-**Visual:** Teacher room and the prompt “What does your learner struggle with?”
-
-**Voice:**
-
-> Tutors often spot a precise gap, but turning it into a personalized visual explanation takes time. A red “incorrect” also gives a discouraged learner little reason to try again.
-
-## 0:24–0:42 — Teacher to task
-
-**Visual:** Teacher request about fraction conversion, supported skill, task appears.
-
-**Voice:**
-
-> The tutor describes the gap in ordinary language. The room selects a supported simulation and creates a real task without asking for an account.
-
-## 0:42–1:03 — Handwriting and GPT-5.6
-
-**Visual:** Learner writes on canvas; status stages; recognition card.
-
-**Voice:**
-
-> The learner solves it naturally on a shared canvas. GPT-5.6 reads the handwriting, reconstructs the steps, and finds the likely error. Strict validation then converts the interpretation into safe simulation inputs.
-
-## 1:03–1:20 — Physical consequence
-
-**Visual:** Show `4.08 m` input controlling the bridge, failure, explanation, disaster discovery.
-
-**Voice:**
-
-> The submitted value does not select a prerecorded animation. It changes the actual bridge geometry in a 2D physics scene, and the room explains exactly why it failed.
-
-## 1:20–1:37 — Retry and success
-
-**Visual:** Correct `0.34` to `0.75`; recognize `9 m`; successful crossing.
-
-**Voice:**
-
-> The learner corrects the conversion, gets nine meters, and tries again. This time the world works—and the progress achievement describes what happened without pretending to measure mastery.
-
-## 1:37–1:51 — Collaboration and reliability
-
-**Visual:** Teacher annotation in a second context; Replay; manual fallback.
-
-**Voice:**
-
-> Teacher notes sync in realtime but stay out of the learner's AI analysis. Replay needs no new model call, and a deterministic form keeps the same simulation usable if AI is unavailable.
-
-## 1:51–2:09 — Architecture and Codex
-
-**Visual:** Brief architecture diagram, tests, milestone commits, deployed URL.
-
-**Voice:**
-
-> Codex built the project milestone by milestone from a frozen design packet. The application runs on Cloudflare Workers, Durable Objects, R2, React, PixiJS, and Planck, with GPT-5.6 through the Responses API.
-
-## 2:09–2:18 — Close
-
-**Visual:** Successful rescue and title.
-
-**Voice:**
-
-> Lost Lessons Lab makes a mistake visible, memorable, and worth correcting. Fix the math to fix the world.
+Exact timeline markers are recorded in `docs/08-SUBMISSION-EVIDENCE.md`. The
+remaining media step is owner upload and incognito verification after HD
+processing; no public URL is claimed yet.
 
 # Final-copy gate
 
 Before publishing:
 
-- [ ] Every “built” statement is true on the tagged release.
-- [ ] Every technology tag exists in the lockfile or deployment.
-- [ ] Every AI claim has real model evidence.
-- [ ] Every screenshot is from production.
-- [ ] No room capability or personal content is visible.
-- [ ] Video timestamps are final.
+- [x] Every current “built” statement is true on the M8 production candidate.
+- [x] Every technology tag exists in the lockfile or deployment.
+- [x] Every AI claim has real model evidence.
+- [x] Every screenshot is from production or explicitly labeled as the generated submission thumbnail.
+- [x] No room capability or personal content is visible in the inspected media.
+- [x] Local upload-candidate timestamps are final.
 - [ ] Codex Session ID is recorded correctly.
-- [ ] No learning-impact claim exceeds evidence.
-- [ ] Cut simulation families are absent.
+- [x] No learning-impact claim exceeds evidence.
+- [x] No simulation family is incomplete or falsely claimed.
 - [ ] Production, README, JUDGING, Devpost, and video agree.

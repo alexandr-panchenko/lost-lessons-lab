@@ -32,7 +32,25 @@ See [`JUDGING.md`](JUDGING.md) for the final concise instructions.
 
 ## Video
 
-Public YouTube demo: **not recorded yet**. Add the verified URL only after the production path is stable.
+An owner-ready 1:41.95 English-narrated production candidate has been built at
+`artifacts/submission/lost-lessons-lab-demo.mp4`, with an embedded caption track
+and matching `.srt` sidecar. The artifact is intentionally ignored by Git; its
+reproducible sources are `scripts/capture-submission-video.ts`,
+`scripts/build-submission-video.sh`, and `docs/evidence/m9/`. The public YouTube
+URL remains pending owner upload and incognito verification.
+
+To recapture the same package, install `ffmpeg`, `ffprobe`, and eSpeak NG, then
+run:
+
+```bash
+bun run capture:video:draft # two real production GPT-5.6 attempts
+bun run build:video:draft
+bun run verify:media
+```
+
+The verifier enforces the sub-three-minute duration, 1280×720 H.264/AAC format,
+embedded caption stream, thumbnail dimensions, required narration evidence, and
+common secret/capability patterns.
 
 ## Product
 

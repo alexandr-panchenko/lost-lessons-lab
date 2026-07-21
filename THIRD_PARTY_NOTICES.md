@@ -4,6 +4,14 @@ This file must be updated whenever implementation dependencies, fonts, images, s
 
 The application uses package-manager dependencies and original code, CSS, PixiJS primitive graphics, and Web Audio oscillator tones. It contains no third-party fonts, images, audio files, or other media assets.
 
+Submission-only media is not loaded by the application. The thumbnail at
+`docs/evidence/m9/submission-thumbnail.png` was generated specifically for this
+project with the Codex built-in image-generation tool and no input image;
+provenance is recorded beside it. The draft video narration text and captions
+are original project copy. The owner-ready audio was synthesized locally with
+eSpeak NG 1.52.0 (GPL-3.0-or-later tool, not redistributed); the generated
+speech is embedded only in the ignored upload artifact.
+
 Before submission, record for every dependency or asset:
 
 | Name | Version/source | Purpose | License | Required attribution | Verified by |

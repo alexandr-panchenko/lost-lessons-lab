@@ -32,7 +32,7 @@ Use this as the final concise gate. The detailed human QA is in `docs/11-HUMAN-V
 
 ## Security and licenses
 
-- [x] No secrets or capability links in repo, bundle, source maps, logs, or current screenshots; final video remains pending.
+- [x] No secrets or capability links in repo, bundle, source maps, logs, screenshots, or the local final video candidate.
 - [x] Private R2 authorization verified.
 - [x] Teacher/learner permissions verified.
 - [x] Application rate limits and kill switch configured and tested.
@@ -56,11 +56,11 @@ Use this as the final concise gate. The detailed human QA is in `docs/11-HUMAN-V
 ## Video and Devpost
 
 - [ ] Public YouTube video is under 3:00.
-- [ ] English narration or translation and accurate captions.
-- [ ] Product appears immediately.
-- [ ] Full hero flow shown.
-- [ ] Codex and GPT-5.6 use explained concretely.
-- [ ] Production matches video.
+- [x] English narration and matching embedded/sidecar captions prepared.
+- [x] Product appears immediately in the 1:41.95 candidate.
+- [x] Full hero flow shown in the candidate.
+- [x] Codex and GPT-5.6 use explained concretely in the candidate.
+- [x] Candidate was captured from the verified production runtime.
 - [ ] Name, tagline, story, technology tags, screenshots, URLs, and testing instructions are final.
 - [ ] Education track selected.
 - [ ] Submission status is **Submitted**, not Draft.
