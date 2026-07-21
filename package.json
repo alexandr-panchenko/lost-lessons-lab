@@ -14,7 +14,7 @@
     "smoke:prod": "bun run scripts/smoke-prod.ts",
     "test:e2e": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log playwright test",
     "test:integration": "WRANGLER_LOG_PATH=/tmp/lost-lessons-wrangler.log vitest run --config vitest.integration.config.ts",
-    "test:live-ai": "vitest run tests/live-ai --passWithNoTests",
+    "test:live-ai": "vitest run --config vitest.live-ai.config.ts --reporter=verbose --disableConsoleIntercept",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "typecheck": "tsc -b --pretty false",
     "validate": "bun run format:check && bun run lint && bun run typecheck && bun run test:unit && bun run test:integration && bun run build && bun run test:e2e"

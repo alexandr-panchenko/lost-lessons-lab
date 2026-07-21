@@ -1,3 +1,6 @@
+import { z } from "zod";
+
+import { AiAttemptSchema } from "../../shared/analysis-types";
 import { RoomBootstrapSchema, type RoomBootstrap } from "../../shared/protocol";
 
 export type RoomLocation = {
@@ -35,4 +38,46 @@ export async function fetchRoomBootstrap(
 export function roomSocketUrl(roomId: string): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}/api/rooms/${roomId}/socket`;
+}
+
+export async function submitAnalysisAttempt(input: {
+  authorId: string;
+  contentHash: string;
+  idempotencyKey: string;
+  mediaBase64: string;
+  previewAsStudent: boolean;
+  room: RoomLocation;
+  sourceCanvasSeq: number;
+}): Promise<{
+  attempt: import("../../shared/analysis-types").AiAttempt;
+  duplicate: boolean;
+}> {
+  const response = await fetch(`/api/rooms/${input.room.roomId}/attempts`, {
+    body: JSON.stringify({
+      authorId: input.authorId,
+      contentHash: input.contentHash,
+      idempotencyKey: input.idempotencyKey,
+      mediaBase64: input.mediaBase64,
+      previewAsStudent: input.previewAsStudent,
+      sourceCanvasSeq: input.sourceCanvasSeq,
+    }),
+    headers: {
+      Authorization: `Bearer ${input.room.token}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const body = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error =
+      typeof body === "object" && body !== null && "error" in body
+        ? String(body.error)
+        : "analysis_failed";
+    throw new Error(error);
+  }
+  const envelope = z
+    .object({ attempt: AiAttemptSchema, duplicate: z.boolean() })
+    .strict()
+    .parse(body);
+  return envelope;
 }

@@ -17,9 +17,9 @@ import {
 
 type AppBindings = { Bindings: WorkerEnv };
 
-const RoomIdSchema = z.string().regex(/^rm_[A-Za-z0-9_-]{20,40}$/u);
+export const RoomIdSchema = z.string().regex(/^rm_[A-Za-z0-9_-]{20,40}$/u);
 
-const ROOM_HEADERS = {
+export const ROOM_HEADERS = {
   "Cache-Control": "no-store",
   "Content-Security-Policy":
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
@@ -126,7 +126,7 @@ async function createRoom(
   });
 }
 
-function bearerToken(value: string | undefined): string | null {
+export function bearerToken(value: string | undefined): string | null {
   if (value === undefined || !value.startsWith("Bearer ")) {
     return null;
   }

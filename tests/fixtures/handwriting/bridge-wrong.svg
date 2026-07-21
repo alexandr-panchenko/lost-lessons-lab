@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560">
+  <rect width="1000" height="560" rx="28" fill="#fffdf7" />
+  <g fill="#18314f" font-family="Z003, cursive" font-size="112">
+    <text x="120" y="205" transform="rotate(-2 120 205)">3/4 = 0.34</text>
+    <text x="82" y="395" transform="rotate(1.5 82 395)">12 × 0.34 = 4.08 m</text>
+  </g>
+</svg>

@@ -1,15 +1,27 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { CanvasWorkspace } from "./canvas/CanvasWorkspace";
+import { rasterizeStudentAttempt } from "./canvas/student-raster";
+import { AnalysisCard } from "./feed/AnalysisCard";
+import { AnalysisSubmitPanel } from "./feed/AnalysisSubmitPanel";
 import { LearningFeed } from "./feed/LearningFeed";
 import {
   fetchRoomBootstrap,
   readRoomLocation,
   roomSocketUrl,
+  submitAnalysisAttempt,
 } from "./room/room-client";
 import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
 import type { CanvasOperation } from "../shared/canvas";
 import type { BridgeSimulationInputs } from "../shared/domain/bridge";
+import type { AnalysisRecord } from "../shared/analysis-types";
 import type {
   RoomBootstrap,
   SocketAuthenticatedMessage,
@@ -30,6 +42,15 @@ function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
   return [...merged.values()];
 }
 
+function mergeAnalyses(
+  current: AnalysisRecord[],
+  incoming: AnalysisRecord[],
+): AnalysisRecord[] {
+  const merged = new Map(current.map((item) => [item.attemptId, item]));
+  for (const item of incoming) merged.set(item.attemptId, item);
+  return [...merged.values()];
+}
+
 export function App() {
   const [roomLocation, setRoomLocation] = useState(() =>
     readRoomLocation(window.location),
@@ -41,10 +62,15 @@ export function App() {
   const [previewStudent, setPreviewStudent] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
+  const [submittingAnalysis, setSubmittingAnalysis] = useState(false);
+  const [readyAiRuns, setReadyAiRuns] = useState<Set<string>>(() => new Set());
   const socketRef = useRef<WebSocket | null>(null);
   const pendingCommands = useRef(new Map<string, SocketAuthenticatedMessage>());
   const lastSeenSeq = useRef(0);
   const clientId = useRef(crypto.randomUUID());
+  const launchAiRun = useCallback((attemptId: string) => {
+    setReadyAiRuns((current) => new Set(current).add(attemptId));
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -55,6 +81,8 @@ export function App() {
       setPreviewStudent(false);
       pendingCommands.current.clear();
       setPendingCount(0);
+      setSubmittingAnalysis(false);
+      setReadyAiRuns(new Set());
       lastSeenSeq.current = 0;
       setRoomLocation(readRoomLocation(window.location));
     };
@@ -103,6 +131,10 @@ export function App() {
             ? current
             : {
                 ...current,
+                analyses: mergeAnalyses(
+                  current.analyses,
+                  message.payload.analyses,
+                ),
                 attempts: mergeById(current.attempts, message.payload.attempts),
                 canvasOperations: [
                   ...new Map(
@@ -167,6 +199,80 @@ export function App() {
                 simulationRuns: mergeById(current.simulationRuns, [
                   message.payload.run,
                 ]).sort((a, b) => a.roomSeq - b.roomSeq),
+              },
+        );
+        return;
+      }
+      if (message.type === "analysis.status") {
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.attempt.roomSeq,
+        );
+        setRoom((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                attempts: mergeById(current.attempts, [
+                  message.payload.attempt,
+                ]),
+                roomSeq: Math.max(
+                  current.roomSeq,
+                  message.payload.attempt.roomSeq,
+                ),
+              },
+        );
+        return;
+      }
+      if (message.type === "analysis.completed") {
+        setSubmittingAnalysis(false);
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.attempt.roomSeq,
+        );
+        setRoom((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                analyses: mergeAnalyses(current.analyses, [
+                  message.payload.analysis,
+                ]),
+                attempts: mergeById(current.attempts, [
+                  message.payload.attempt,
+                ]),
+                roomSeq: Math.max(
+                  current.roomSeq,
+                  message.payload.attempt.roomSeq,
+                ),
+                simulationRuns: mergeById(current.simulationRuns, [
+                  message.payload.run,
+                ]).sort((a, b) => a.roomSeq - b.roomSeq),
+              },
+        );
+        return;
+      }
+      if (message.type === "analysis.failed") {
+        setSubmittingAnalysis(false);
+        lastSeenSeq.current = Math.max(
+          lastSeenSeq.current,
+          message.payload.attempt.roomSeq,
+        );
+        setRoom((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                analyses: mergeAnalyses(current.analyses, [
+                  message.payload.analysis,
+                ]),
+                attempts: mergeById(current.attempts, [
+                  message.payload.attempt,
+                ]),
+                roomSeq: Math.max(
+                  current.roomSeq,
+                  message.payload.attempt.roomSeq,
+                ),
               },
         );
         return;
@@ -350,6 +456,48 @@ export function App() {
     });
   }
 
+  async function submitHandwritingAttempt(): Promise<void> {
+    if (roomLocation === null || room === null || pendingCount > 0) return;
+    setCommandError("");
+    setSubmittingAnalysis(true);
+    try {
+      const raster = await rasterizeStudentAttempt(
+        room.canvasOperations,
+        latestStudentSeq,
+      );
+      const result = await submitAnalysisAttempt({
+        authorId: clientId.current,
+        contentHash: raster.contentHash,
+        idempotencyKey: crypto.randomUUID(),
+        mediaBase64: raster.mediaBase64,
+        previewAsStudent: isTeacher && previewStudent,
+        room: roomLocation,
+        sourceCanvasSeq: latestStudentSeq,
+      });
+      setRoom((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              attempts: mergeById(current.attempts, [result.attempt]),
+              roomSeq: Math.max(current.roomSeq, result.attempt.roomSeq),
+            },
+      );
+    } catch (reason) {
+      setSubmittingAnalysis(false);
+      const code = reason instanceof Error ? reason.message : "analysis_failed";
+      setCommandError(
+        code === "ai_disabled"
+          ? "AI interpretation is disabled right now. Use the manual bridge controls below."
+          : code === "ai_rate_limited" || code === "rate_limited"
+            ? "The AI limit was reached. Use the manual bridge controls below."
+            : code.includes("canvas") || code.includes("student layer")
+              ? code
+              : "The handwriting could not be submitted safely. Your drawing is intact; use the manual bridge controls below.",
+      );
+    }
+  }
+
   return (
     <main className="room-page">
       <header className="room-header">
@@ -429,11 +577,37 @@ export function App() {
           roomSeq={room.roomSeq}
         />
         {studentPerspective ? (
-          <ManualBridgePanel
-            disabled={connection !== "connected"}
-            onSubmit={submitManualAttempt}
-            pendingOperations={pendingCount}
-          />
+          <>
+            <AnalysisSubmitPanel
+              disabled={
+                connection !== "connected" ||
+                room.attempts.some(
+                  (attempt) =>
+                    "mode" in attempt &&
+                    attempt.mode === "ai" &&
+                    attempt.status !== "complete" &&
+                    attempt.status !== "failed",
+                )
+              }
+              onSubmit={() => void submitHandwritingAttempt()}
+              pendingOperations={pendingCount}
+              submitting={submittingAnalysis}
+            />
+            <ManualBridgePanel
+              disabled={
+                connection !== "connected" ||
+                room.attempts.some(
+                  (attempt) =>
+                    "mode" in attempt &&
+                    attempt.mode === "ai" &&
+                    attempt.status !== "complete" &&
+                    attempt.status !== "failed",
+                )
+              }
+              onSubmit={submitManualAttempt}
+              pendingOperations={pendingCount}
+            />
+          </>
         ) : (
           <section className="teacher-note-card">
             <strong>Teacher annotation mode</strong>
@@ -444,10 +618,33 @@ export function App() {
             </p>
           </section>
         )}
+        {room.attempts
+          .filter((attempt) => "mode" in attempt && attempt.mode === "ai")
+          .map((attempt) =>
+            "mode" in attempt && attempt.mode === "ai" ? (
+              <AnalysisCard
+                analysis={room.analyses.find(
+                  (analysis) => analysis.attemptId === attempt.id,
+                )}
+                attempt={attempt}
+                key={attempt.id}
+                onLaunch={launchAiRun}
+                room={roomLocation!}
+              />
+            ) : null,
+          )}
         {room.simulationRuns.map((run) => {
           const attempt = room.attempts.find(
             (candidate) => candidate.id === run.attemptId,
           );
+          if (
+            attempt !== undefined &&
+            "mode" in attempt &&
+            attempt.mode === "ai" &&
+            !readyAiRuns.has(attempt.id)
+          ) {
+            return null;
+          }
           return (
             <Suspense
               fallback={

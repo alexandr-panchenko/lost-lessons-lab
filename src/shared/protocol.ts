@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  AiAttemptSchema,
+  AnalysisRecordSchema,
+  AnalysisStatusSchema,
+} from "./analysis-types";
 import { CanvasOperationRecordSchema, CanvasOperationSchema } from "./canvas";
 import {
   BridgeOutcomeSchema,
@@ -73,6 +78,12 @@ export const ManualAttemptSchema = z
   .strict();
 export type ManualAttempt = z.infer<typeof ManualAttemptSchema>;
 
+export const RoomAttemptSchema = z.union([
+  ManualAttemptSchema,
+  AiAttemptSchema,
+]);
+export type RoomAttempt = z.infer<typeof RoomAttemptSchema>;
+
 export const SimulationRunSchema = z
   .object({
     attemptId: z.string().min(8).max(128),
@@ -92,7 +103,8 @@ export type SimulationRun = z.infer<typeof SimulationRunSchema>;
 export const RoomBootstrapSchema = z
   .object({
     createdAt: z.string(),
-    attempts: z.array(ManualAttemptSchema),
+    analyses: z.array(AnalysisRecordSchema),
+    attempts: z.array(RoomAttemptSchema),
     canvasOperations: z.array(CanvasOperationRecordSchema),
     events: z.array(RoomFeedEventSchema),
     fixtureId: z.string(),
@@ -173,7 +185,8 @@ export type SocketServerMessage =
       type: "room.delta";
       v: 1;
       payload: {
-        attempts: ManualAttempt[];
+        analyses: z.infer<typeof AnalysisRecordSchema>[];
+        attempts: RoomAttempt[];
         canvasOperations: z.infer<typeof CanvasOperationRecordSchema>[];
         fromSeq: number;
         simulationRuns: SimulationRun[];
@@ -210,5 +223,30 @@ export type SocketServerMessage =
   | {
       type: "simulation.launch";
       v: 1;
-      payload: { attempt: ManualAttempt; run: SimulationRun };
+      payload: { attempt: RoomAttempt; run: SimulationRun };
+    }
+  | {
+      type: "analysis.status";
+      v: 1;
+      payload: {
+        attempt: z.infer<typeof AiAttemptSchema>;
+        stage: z.infer<typeof AnalysisStatusSchema>;
+      };
+    }
+  | {
+      type: "analysis.completed";
+      v: 1;
+      payload: {
+        analysis: z.infer<typeof AnalysisRecordSchema>;
+        attempt: z.infer<typeof AiAttemptSchema>;
+        run: SimulationRun;
+      };
+    }
+  | {
+      type: "analysis.failed";
+      v: 1;
+      payload: {
+        analysis: z.infer<typeof AnalysisRecordSchema>;
+        attempt: z.infer<typeof AiAttemptSchema>;
+      };
     };

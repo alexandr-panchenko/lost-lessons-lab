@@ -1,0 +1,230 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  analyzeBridgeSolution,
+  buildOpenAiSolutionRequest,
+  parseAiConfiguration,
+} from "../../src/worker/ai/openai-responses";
+import { wrongBridgeAnalysis } from "../fixtures/openai/solution-results";
+
+const config = parseAiConfiguration({
+  AI_ENABLED: "true",
+  AI_MAX_RETRIES: "1",
+  AI_TIMEOUT_MS: "3000",
+  OPENAI_API_KEY: "test-key-long-enough-for-schema",
+  OPENAI_MODEL: "gpt-5.6",
+});
+
+function modelResponse(result: unknown, id = "resp_test"): Response {
+  return Response.json({
+    id,
+    model: "gpt-5.6-2026-07-01",
+    output: [
+      {
+        content: [{ text: JSON.stringify(result), type: "output_text" }],
+        type: "message",
+      },
+    ],
+    usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 },
+  });
+}
+
+function refusalResponse(): Response {
+  return Response.json({
+    id: "resp_refusal",
+    model: "gpt-5.6-sol",
+    output: [
+      {
+        content: [{ refusal: "Cannot interpret this image.", type: "refusal" }],
+        type: "message",
+      },
+    ],
+  });
+}
+
+describe("GPT-5.6 Responses boundary", () => {
+  it("uses a private strict request with a high-detail PNG", () => {
+    const request = buildOpenAiSolutionRequest({
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(request.model).toBe("gpt-5.6");
+    expect(request.store).toBe(false);
+    expect(request.reasoning).toEqual({ effort: "low" });
+    expect(request.text.format).toMatchObject({
+      name: "solution_analysis_v1",
+      strict: true,
+      type: "json_schema",
+    });
+    expect(request.input[0]?.content[1]).toEqual({
+      detail: "high",
+      image_url: "data:image/png;base64,aW1hZ2U=",
+      type: "input_image",
+    });
+  });
+
+  it("returns only deterministically validated extracted inputs", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      modelResponse(wrongBridgeAnalysis),
+    );
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.validated.outcome.resultClass).toBe("bridge_far_too_short");
+      expect(result.responseId).toBe("resp_test");
+      expect(result.usedRepair).toBe(false);
+    }
+  });
+
+  it("permits exactly one schema repair and labels it", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(modelResponse({ incomplete: true }, "resp_bad"))
+      .mockResolvedValueOnce(modelResponse(wrongBridgeAnalysis, "resp_fixed"));
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ ok: true, usedRepair: true });
+    const repairedBody = JSON.parse(
+      String(fetchImpl.mock.calls[1]?.[1]?.body),
+    ) as { input: Array<{ content: Array<{ text?: string }> }> };
+    expect(repairedBody.input[0]?.content[0]?.text).toContain("prior result");
+  });
+
+  it("stops after one transient retry and exposes a fallback category", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      Response.json({ error: "busy" }, { status: 429 }),
+    );
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      category: "rate_limited",
+      ok: false,
+      usedRepair: true,
+    });
+  });
+
+  it.each([
+    ["network error", () => Promise.reject(new Error("offline")), "upstream"],
+    [
+      "server error",
+      () => Promise.resolve(new Response(null, { status: 500 })),
+      "upstream",
+    ],
+    [
+      "malformed response",
+      () => Promise.resolve(modelResponse({ incomplete: true })),
+      "invalid_schema",
+    ],
+  ] as const)("bounds retries for %s", async (_name, response, category) => {
+    const fetchImpl = vi.fn<typeof fetch>(response);
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ category, ok: false, usedRepair: true });
+  });
+
+  it.each([
+    ["ambiguous", "ambiguous"],
+    ["unreadable", "unreadable"],
+  ] as const)("does not guess when work is %s", async (verdict, category) => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      modelResponse({ ...wrongBridgeAnalysis, verdict }),
+    );
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ category, ok: false, usedRepair: false });
+  });
+
+  it("maps model refusal directly to a visible fallback", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => refusalResponse());
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ category: "refusal", ok: false });
+  });
+
+  it("repairs semantic contradictions once and then fails safely", async () => {
+    const contradictory = {
+      ...wrongBridgeAnalysis,
+      scenarioInputs: {
+        deployedLengthMeters: 4.08,
+        fractionAsDecimal: 0.75,
+      },
+    };
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      modelResponse(contradictory),
+    );
+    const result = await analyzeBridgeSolution({
+      config,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      category: "semantic_invalid",
+      ok: false,
+      usedRepair: true,
+    });
+  });
+
+  it("aborts a timed-out request without retrying", async () => {
+    const timeoutConfig = { ...config, AI_TIMEOUT_MS: 5 };
+    const fetchImpl = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        }),
+    );
+    const result = await analyzeBridgeSolution({
+      config: timeoutConfig,
+      fetchImpl,
+      imageBase64: "aW1hZ2U=",
+      safetyIdentifier: "room_hash",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ category: "timeout", ok: false });
+  });
+
+  it("fails closed when AI is disabled or its secret is missing", () => {
+    expect(() =>
+      parseAiConfiguration({
+        AI_ENABLED: "true",
+        AI_MAX_RETRIES: "1",
+        AI_TIMEOUT_MS: "3000",
+        OPENAI_MODEL: "gpt-5.6",
+      }),
+    ).toThrow();
+  });
+});

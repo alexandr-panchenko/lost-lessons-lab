@@ -9,6 +9,19 @@ import {
   type DrawableCanvasLayer,
 } from "../../shared/canvas";
 import {
+  AiAttemptSchema,
+  AnalysisFailureCategorySchema,
+  AnalysisRecordSchema,
+  AnalysisStatusSchema,
+  AttemptMediaSchema,
+  SolutionAnalysisSchema,
+  type AiAttempt,
+  type AnalysisRecord,
+  type AnalysisStatus,
+  type AttemptMedia,
+} from "../../shared/analysis-types";
+import {
+  BridgeSimulationInputsSchema,
   classifyBridgeInput,
   HERO_BRIDGE_PARAMETERS,
 } from "../../shared/domain/bridge";
@@ -19,6 +32,7 @@ import {
   SocketAuthMessageSchema,
   SocketAuthenticatedMessageSchema,
   type ManualAttempt,
+  type RoomAttempt,
   type RoomBootstrap,
   type RoomFeedEvent,
   type RoomRole,
@@ -93,10 +107,67 @@ type SimulationRunRow = {
   template_version: number;
 };
 
+type AnalysisAttemptRow = {
+  author_id: string;
+  created_at: string;
+  id: string;
+  media_id: string | null;
+  room_seq: number;
+  source_canvas_seq: number;
+  status: AnalysisStatus;
+  task_id: string;
+};
+
+type MediaRow = {
+  byte_size: number;
+  content_hash: string;
+  content_type: "image/png";
+  height: number;
+  id: string;
+  r2_key: string;
+  width: number;
+};
+
+type AnalysisResultRow = {
+  attempt_id: string;
+  completed_at: string;
+  disagreement: number;
+  failure_category: string | null;
+  latency_ms: number;
+  model_id: string | null;
+  response_id: string | null;
+  result_json: string | null;
+  used_repair: number;
+};
+
 type SocketAttachment = {
   clientId: string;
   role: RoomRole;
 };
+
+const BeginAiAttemptSchema = z
+  .object({
+    authorId: z.string().min(8).max(128),
+    capability: z.string().min(32).max(256),
+    contentHash: z.string().regex(/^[a-f0-9]{64}$/u),
+    idempotencyKey: z.string().min(8).max(128),
+    previewAsStudent: z.boolean(),
+    sourceCanvasSeq: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const CompleteAiAttemptSchema = z
+  .object({
+    analysis: SolutionAnalysisSchema,
+    attemptId: z.string().min(8).max(128),
+    disagreement: z.boolean(),
+    inputs: BridgeSimulationInputsSchema,
+    latencyMs: z.number().int().nonnegative(),
+    modelId: z.string().min(1).max(80),
+    responseId: z.string().min(1).max(160),
+    usedRepair: z.boolean(),
+  })
+  .strict();
 
 export class RoomDurableObject extends DurableObject<WorkerEnv> {
   constructor(ctx: DurableObjectState, env: WorkerEnv) {
@@ -106,6 +177,38 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
 
   ping(): string {
     return "room-runtime-ready";
+  }
+
+  reserveHourlyRateLimit(scope: string, limit: number): boolean {
+    const parsedScope = z.string().min(16).max(160).parse(scope);
+    const parsedLimit = z.number().int().positive().max(10_000).parse(limit);
+    const bucketStart = new Date(
+      Math.floor(Date.now() / 3_600_000) * 3_600_000,
+    ).toISOString();
+    let accepted = false;
+    this.ctx.storage.transactionSync(() => {
+      const current = this.ctx.storage.sql
+        .exec<{ count: number }>(
+          "SELECT count FROM rate_limit_buckets WHERE scope = ? AND bucket_start = ?",
+          parsedScope,
+          bucketStart,
+        )
+        .toArray()[0]?.count;
+      if ((current ?? 0) >= parsedLimit) return;
+      this.ctx.storage.sql.exec(
+        `INSERT INTO rate_limit_buckets (scope, bucket_start, count)
+         VALUES (?, ?, 1)
+         ON CONFLICT(scope, bucket_start) DO UPDATE SET count = count + 1`,
+        parsedScope,
+        bucketStart,
+      );
+      this.ctx.storage.sql.exec(
+        "DELETE FROM rate_limit_buckets WHERE bucket_start < ?",
+        bucketStart,
+      );
+      accepted = true;
+    });
+    return accepted;
   }
 
   acquireAttemptProcessingLock(attemptId: string): boolean {
@@ -139,6 +242,324 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       "UPDATE room_locks SET active_attempt_id = NULL WHERE singleton = 1",
     );
     return true;
+  }
+
+  async beginAiAttempt(input: z.input<typeof BeginAiAttemptSchema>): Promise<
+    | { attempt: AiAttempt; duplicate: boolean; ok: true }
+    | {
+        ok: false;
+        reason:
+          | "attempt_in_progress"
+          | "permission_denied"
+          | "rate_limited"
+          | "stale_canvas_sequence"
+          | "unauthorized";
+      }
+  > {
+    const value = BeginAiAttemptSchema.parse(input);
+    const meta = this.roomMeta();
+    if (meta === null) return { ok: false, reason: "unauthorized" };
+    const role = await this.roleForCapability(meta, value.capability);
+    if (role === null) return { ok: false, reason: "unauthorized" };
+    if (role === "teacher" && !value.previewAsStudent) {
+      return { ok: false, reason: "permission_denied" };
+    }
+
+    const duplicateId = this.ctx.storage.sql
+      .exec<{ id: string }>(
+        "SELECT id FROM analysis_attempts WHERE idempotency_key = ?",
+        value.idempotencyKey,
+      )
+      .toArray()[0]?.id;
+    if (duplicateId !== undefined) {
+      const attempt = this.analysisAttemptById(duplicateId);
+      if (attempt !== null) return { attempt, duplicate: true, ok: true };
+    }
+    if (!this.validStudentCutoff(value.sourceCanvasSeq)) {
+      return { ok: false, reason: "stale_canvas_sequence" };
+    }
+
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const recent = this.ctx.storage.sql
+      .exec<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM analysis_attempts WHERE created_at >= ?",
+        cutoff,
+      )
+      .toArray()[0]?.count;
+    const roomLimit = Number.parseInt(this.env.AI_ROOM_LIMIT_PER_HOUR, 10);
+    if ((recent ?? 0) >= roomLimit)
+      return { ok: false, reason: "rate_limited" };
+
+    const attemptId = `at_${crypto.randomUUID()}`;
+    if (!this.acquireAttemptProcessingLock(attemptId)) {
+      return { ok: false, reason: "attempt_in_progress" };
+    }
+
+    const createdAt = new Date().toISOString();
+    let roomSeq = 0;
+    try {
+      this.ctx.storage.transactionSync(() => {
+        roomSeq = this.nextSequence();
+        this.ctx.storage.sql.exec(
+          `INSERT INTO analysis_attempts (
+            id, idempotency_key, task_id, author_id, source_canvas_seq,
+            status, room_seq, media_id, created_at
+          ) VALUES (?, ?, 'bridge-task-v1', ?, ?, 'uploading', ?, NULL, ?)`,
+          attemptId,
+          value.idempotencyKey,
+          value.authorId,
+          value.sourceCanvasSeq,
+          roomSeq,
+          createdAt,
+        );
+        this.ctx.storage.sql.exec(
+          "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+          roomSeq + 1,
+        );
+      });
+    } catch (error) {
+      this.releaseAttemptProcessingLock(attemptId);
+      throw error;
+    }
+    const attempt = this.analysisAttemptById(attemptId);
+    if (attempt === null) throw new Error("Analysis attempt was not persisted");
+    this.broadcast({
+      payload: { attempt, stage: "uploading" },
+      type: "analysis.status",
+      v: 1,
+    });
+    return { attempt, duplicate: false, ok: true };
+  }
+
+  attachAiAttemptMedia(input: {
+    attemptId: string;
+    media: AttemptMedia;
+    r2Key: string;
+  }): AiAttempt {
+    const attemptId = z.string().min(8).max(128).parse(input.attemptId);
+    const media = AttemptMediaSchema.parse(input.media);
+    const r2Key = z
+      .string()
+      .regex(
+        /^rooms\/rm_[A-Za-z0-9_-]+\/attempts\/at_[^/]+\/[a-f0-9]{64}\.png$/u,
+      )
+      .parse(input.r2Key);
+    const attempt = this.analysisAttemptById(attemptId);
+    if (attempt === null || attempt.status !== "uploading") {
+      throw new Error("Analysis attempt is not awaiting media");
+    }
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO media_objects (
+          id, attempt_id, r2_key, content_hash, content_type,
+          byte_size, width, height, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        media.id,
+        attemptId,
+        r2Key,
+        media.contentHash,
+        media.contentType,
+        media.byteSize,
+        media.width,
+        media.height,
+        new Date().toISOString(),
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE analysis_attempts SET media_id = ? WHERE id = ?",
+        media.id,
+        attemptId,
+      );
+    });
+    const updated = this.analysisAttemptById(attemptId);
+    if (updated === null)
+      throw new Error("Analysis attempt media was not attached");
+    return updated;
+  }
+
+  setAnalysisStatus(attemptId: string, status: AnalysisStatus): AiAttempt {
+    const parsedId = z.string().min(8).max(128).parse(attemptId);
+    const parsedStatus = AnalysisStatusSchema.exclude([
+      "complete",
+      "failed",
+    ]).parse(status);
+    const current = this.analysisAttemptById(parsedId);
+    if (
+      current === null ||
+      current.status === "complete" ||
+      current.status === "failed"
+    ) {
+      throw new Error("Analysis attempt is not active");
+    }
+    let roomSeq = 0;
+    this.ctx.storage.transactionSync(() => {
+      roomSeq = this.nextSequence();
+      this.ctx.storage.sql.exec(
+        "UPDATE analysis_attempts SET status = ?, room_seq = ? WHERE id = ?",
+        parsedStatus,
+        roomSeq,
+        parsedId,
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+        roomSeq + 1,
+      );
+    });
+    const attempt = this.analysisAttemptById(parsedId);
+    if (attempt === null) throw new Error("Analysis status was not persisted");
+    this.broadcast({
+      payload: { attempt, stage: parsedStatus },
+      type: "analysis.status",
+      v: 1,
+    });
+    return attempt;
+  }
+
+  completeAiAttempt(input: z.input<typeof CompleteAiAttemptSchema>): {
+    analysis: AnalysisRecord;
+    attempt: AiAttempt;
+    run: SimulationRun;
+  } {
+    const value = CompleteAiAttemptSchema.parse(input);
+    const current = this.analysisAttemptById(value.attemptId);
+    if (current === null || current.media === null) {
+      throw new Error("Analysis attempt or media is missing");
+    }
+    if (current.status === "complete" || current.status === "failed") {
+      throw new Error("Analysis attempt is already terminal");
+    }
+    const outcome = classifyBridgeInput(HERO_BRIDGE_PARAMETERS, value.inputs);
+    const completedAt = new Date().toISOString();
+    const runId = `run_${crypto.randomUUID()}`;
+    const randomSeed = crypto.randomUUID();
+    let roomSeq = 0;
+    this.ctx.storage.transactionSync(() => {
+      roomSeq = this.nextSequence();
+      this.ctx.storage.sql.exec(
+        "UPDATE analysis_attempts SET status = 'complete', room_seq = ? WHERE id = ?",
+        roomSeq,
+        value.attemptId,
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT INTO analysis_results (
+          attempt_id, result_json, failure_category, disagreement, model_id,
+          response_id, latency_ms, used_repair, completed_at
+        ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+        value.attemptId,
+        JSON.stringify(value.analysis),
+        value.disagreement ? 1 : 0,
+        value.modelId,
+        value.responseId,
+        value.latencyMs,
+        value.usedRepair ? 1 : 0,
+        completedAt,
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT INTO simulation_runs (
+          id, attempt_id, room_seq, template_id, template_version,
+          inputs_json, outcome_json, presentation_variant, random_seed, created_at
+        ) VALUES (?, ?, ?, 'bridge', 1, ?, ?, 'ravine-rescue-v1', ?, ?)`,
+        runId,
+        value.attemptId,
+        roomSeq,
+        JSON.stringify(value.inputs),
+        JSON.stringify(outcome),
+        randomSeed,
+        completedAt,
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+        roomSeq + 1,
+      );
+    });
+    this.releaseAttemptProcessingLock(value.attemptId);
+    const attempt = this.analysisAttemptById(value.attemptId);
+    const analysis = this.analysisForAttempt(value.attemptId);
+    const run = this.simulationRunForAttempt(value.attemptId);
+    if (attempt === null || analysis === null || run === null) {
+      throw new Error("Completed analysis state was not persisted");
+    }
+    this.broadcast({
+      payload: { analysis, attempt, run },
+      type: "analysis.completed",
+      v: 1,
+    });
+    return { analysis, attempt, run };
+  }
+
+  failAiAttempt(input: {
+    attemptId: string;
+    category: z.input<typeof AnalysisFailureCategorySchema>;
+    latencyMs: number;
+    usedRepair: boolean;
+  }): { analysis: AnalysisRecord; attempt: AiAttempt } {
+    const attemptId = z.string().min(8).max(128).parse(input.attemptId);
+    const category = AnalysisFailureCategorySchema.parse(input.category);
+    const latencyMs = z.number().int().nonnegative().parse(input.latencyMs);
+    const current = this.analysisAttemptById(attemptId);
+    if (current === null) throw new Error("Analysis attempt is missing");
+    if (current.status === "complete" || current.status === "failed") {
+      throw new Error("Analysis attempt is already terminal");
+    }
+    const completedAt = new Date().toISOString();
+    let roomSeq = 0;
+    this.ctx.storage.transactionSync(() => {
+      roomSeq = this.nextSequence();
+      this.ctx.storage.sql.exec(
+        "UPDATE analysis_attempts SET status = 'failed', room_seq = ? WHERE id = ?",
+        roomSeq,
+        attemptId,
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT OR REPLACE INTO analysis_results (
+          attempt_id, result_json, failure_category, disagreement, model_id,
+          response_id, latency_ms, used_repair, completed_at
+        ) VALUES (?, NULL, ?, 0, NULL, NULL, ?, ?, ?)`,
+        attemptId,
+        category,
+        latencyMs,
+        input.usedRepair ? 1 : 0,
+        completedAt,
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+        roomSeq + 1,
+      );
+    });
+    this.releaseAttemptProcessingLock(attemptId);
+    const attempt = this.analysisAttemptById(attemptId);
+    const analysis = this.analysisForAttempt(attemptId);
+    if (attempt === null || analysis === null) {
+      throw new Error("Failed analysis state was not persisted");
+    }
+    this.broadcast({
+      payload: { analysis, attempt },
+      type: "analysis.failed",
+      v: 1,
+    });
+    return { analysis, attempt };
+  }
+
+  async mediaForCapability(
+    capability: string,
+    mediaId: string,
+  ): Promise<{ contentType: string; r2Key: string } | null> {
+    const meta = this.roomMeta();
+    if (
+      meta === null ||
+      (await this.roleForCapability(meta, capability)) === null
+    ) {
+      return null;
+    }
+    const row = this.ctx.storage.sql
+      .exec<MediaRow>(
+        `SELECT id, r2_key, content_hash, content_type, byte_size, width, height
+         FROM media_objects WHERE id = ?`,
+        z.string().min(8).max(128).parse(mediaId),
+      )
+      .toArray()[0];
+    return row === undefined
+      ? null
+      : { contentType: row.content_type, r2Key: row.r2_key };
   }
 
   initialize(input: Initialization, events: RoomFeedEvent[]): void {
@@ -292,9 +713,14 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     }
 
     const runs = this.simulationRunsAfter(lastSeenSeq);
-    const attemptIds = runs.map((run) => run.attemptId);
+    const changedAiAttempts = this.analysisAttemptsAfter(lastSeenSeq);
+    const attemptIds = [
+      ...runs.map((run) => run.attemptId),
+      ...changedAiAttempts.map((attempt) => attempt.id),
+    ];
     this.send(socket, {
       payload: {
+        analyses: this.analysesByAttemptId(attemptIds),
         attempts: this.attemptsById(attemptIds),
         canvasOperations: this.canvasOperationsAfter(lastSeenSeq),
         fromSeq: lastSeenSeq,
@@ -541,7 +967,8 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     return (
       this.ctx.storage.sql
         .exec<{ seq: number }>(
-          "SELECT seq FROM canvas_operations WHERE seq = ? AND layer = 'student'",
+          `SELECT seq FROM canvas_operations
+           WHERE seq = ? AND layer = 'student' AND workspace_id = 'bridge-workspace-v1'`,
           sourceCanvasSeq,
         )
         .toArray()[0] !== undefined
@@ -669,13 +1096,19 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       );
   }
 
-  private attempts(): ManualAttempt[] {
+  private attempts(): RoomAttempt[] {
+    return [...this.manualAttempts(), ...this.analysisAttempts()].sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    );
+  }
+
+  private manualAttempts(): ManualAttempt[] {
     return this.attemptRows(
       "SELECT id, task_id, author_id, source_canvas_seq, status, created_at FROM attempts ORDER BY created_at",
     );
   }
 
-  private attemptsById(ids: string[]): ManualAttempt[] {
+  private attemptsById(ids: string[]): RoomAttempt[] {
     if (ids.length === 0) return [];
     const wanted = new Set(ids);
     return this.attempts().filter((attempt) => wanted.has(attempt.id));
@@ -695,6 +1128,116 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
           taskId: row.task_id,
         }),
       );
+  }
+
+  private analysisAttempts(): AiAttempt[] {
+    return this.analysisAttemptRows(
+      `SELECT id, task_id, author_id, source_canvas_seq, status, room_seq,
+              media_id, created_at FROM analysis_attempts ORDER BY created_at`,
+    );
+  }
+
+  private analysisAttemptsAfter(seq: number): AiAttempt[] {
+    return this.analysisAttemptRows(
+      `SELECT id, task_id, author_id, source_canvas_seq, status, room_seq,
+              media_id, created_at FROM analysis_attempts WHERE room_seq > ? ORDER BY room_seq`,
+      seq,
+    );
+  }
+
+  private analysisAttemptById(attemptId: string): AiAttempt | null {
+    return (
+      this.analysisAttemptRows(
+        `SELECT id, task_id, author_id, source_canvas_seq, status, room_seq,
+                media_id, created_at FROM analysis_attempts WHERE id = ?`,
+        attemptId,
+      )[0] ?? null
+    );
+  }
+
+  private analysisAttemptRows(
+    query: string,
+    ...bindings: unknown[]
+  ): AiAttempt[] {
+    return this.ctx.storage.sql
+      .exec<AnalysisAttemptRow>(query, ...bindings)
+      .toArray()
+      .map((row) =>
+        AiAttemptSchema.parse({
+          authorId: row.author_id,
+          createdAt: row.created_at,
+          id: row.id,
+          media: row.media_id === null ? null : this.mediaById(row.media_id),
+          mode: "ai",
+          roomSeq: row.room_seq,
+          sourceCanvasSeq: row.source_canvas_seq,
+          status: row.status,
+          taskId: row.task_id,
+        }),
+      );
+  }
+
+  private mediaById(mediaId: string): AttemptMedia | null {
+    const row = this.ctx.storage.sql
+      .exec<MediaRow>(
+        `SELECT id, r2_key, content_hash, content_type, byte_size, width, height
+         FROM media_objects WHERE id = ?`,
+        mediaId,
+      )
+      .toArray()[0];
+    return row === undefined
+      ? null
+      : AttemptMediaSchema.parse({
+          byteSize: row.byte_size,
+          contentHash: row.content_hash,
+          contentType: row.content_type,
+          height: row.height,
+          id: row.id,
+          width: row.width,
+        });
+  }
+
+  private analyses(): AnalysisRecord[] {
+    return this.ctx.storage.sql
+      .exec<AnalysisResultRow>(
+        `SELECT attempt_id, result_json, failure_category, disagreement,
+                model_id, response_id, latency_ms, used_repair, completed_at
+         FROM analysis_results ORDER BY completed_at`,
+      )
+      .toArray()
+      .map((row) => this.analysisRecord(row));
+  }
+
+  private analysesByAttemptId(ids: string[]): AnalysisRecord[] {
+    if (ids.length === 0) return [];
+    const wanted = new Set(ids);
+    return this.analyses().filter((analysis) => wanted.has(analysis.attemptId));
+  }
+
+  private analysisForAttempt(attemptId: string): AnalysisRecord | null {
+    const row = this.ctx.storage.sql
+      .exec<AnalysisResultRow>(
+        `SELECT attempt_id, result_json, failure_category, disagreement,
+                model_id, response_id, latency_ms, used_repair, completed_at
+         FROM analysis_results WHERE attempt_id = ?`,
+        attemptId,
+      )
+      .toArray()[0];
+    return row === undefined ? null : this.analysisRecord(row);
+  }
+
+  private analysisRecord(row: AnalysisResultRow): AnalysisRecord {
+    return AnalysisRecordSchema.parse({
+      attemptId: row.attempt_id,
+      completedAt: row.completed_at,
+      disagreement: row.disagreement === 1,
+      failureCategory: row.failure_category,
+      latencyMs: row.latency_ms,
+      modelId: row.model_id,
+      responseId: row.response_id,
+      result: row.result_json === null ? null : JSON.parse(row.result_json),
+      usedRepair: row.used_repair === 1,
+    });
   }
 
   private simulationRuns(): SimulationRun[] {
@@ -771,6 +1314,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       );
 
     const base = {
+      analyses: this.analyses(),
       attempts: this.attempts(),
       canvasOperations: this.canvasOperations(),
       createdAt: meta.created_at,

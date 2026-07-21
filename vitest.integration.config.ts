@@ -9,7 +9,10 @@ export default defineConfig({
       },
       miniflare: {
         bindings: {
-          OPENAI_API_KEY: "test-openai-key-unused-in-m2",
+          AI_ENABLED: "false",
+          AI_IP_LIMIT_PER_HOUR: "2",
+          AI_ROOM_LIMIT_PER_HOUR: "2",
+          OPENAI_API_KEY: "test-openai-key-unused-while-ai-is-disabled",
           ROOM_TOKEN_PEPPER: "test-room-pepper-with-at-least-thirty-two-bytes",
         },
       },

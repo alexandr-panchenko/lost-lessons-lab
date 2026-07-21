@@ -51,12 +51,12 @@ export function ManualBridgePanel({
   return (
     <section className="manual-card" aria-labelledby="manual-title">
       <div>
-        <p className="feed-card__label">Manual bridge controls · no AI claim</p>
-        <h2 id="manual-title">Run the value you wrote</h2>
+        <p className="feed-card__label">Manual fallback · no AI claim</p>
+        <h2 id="manual-title">Enter the value yourself</h2>
         <p>
-          Handwriting interpretation arrives in the next milestone. For now,
-          enter the bridge length from the learner&apos;s work; the same
-          deterministic validator and real physics scene run below.
+          If the interpretation is unavailable or unclear, enter the bridge
+          length from the learner&apos;s work. The same deterministic validator
+          and real physics scene run below.
         </p>
       </div>
       <form className="manual-form" onSubmit={submit}>

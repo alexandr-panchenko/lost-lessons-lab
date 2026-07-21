@@ -26,7 +26,7 @@ Expected visible result:
 - the corrected value produces a safe crossing and a progress achievement;
 - a teacher can annotate the learner's canvas in realtime without those marks entering the learner's submitted answer.
 
-The currently deployed M3 slice supports the complete non-AI path: shared layered handwriting, immutable attempt cutoffs, manual bridge values, deterministic classification, real PixiJS + Planck physics, replay, and reload persistence. GPT-5.6 handwriting interpretation is added and enabled in M4; until then the UI labels manual entry explicitly and makes no fake AI claim.
+The M4 slice adds server-only GPT-5.6 handwriting interpretation to the complete deterministic M3 path. Student-only PNGs are stored privately, model output is parsed through strict Structured Outputs and template-specific validation, and failures return immediately to an explicitly labeled manual form. The browser never receives an OpenAI key and the model verdict never decides arithmetic truth.
 
 See [`JUDGING.md`](JUDGING.md) for the final concise instructions.
 
@@ -81,7 +81,7 @@ Prerequisites for the current repository shell:
 - Bun 1.2.5 or newer;
 - Git.
 
-Cloudflare and OpenAI credentials are not required for the M1 local shell or its automated validation. They become necessary only at the deployment and live-AI milestones described in the implementation plan.
+Cloudflare and OpenAI credentials are not required for mocked automated validation. They are required for deployment and the opt-in live-AI suite described in the implementation plan.
 
 From a clean clone:
 
@@ -151,9 +151,9 @@ Room data lives with the room Durable Object. Visible binary media lives in priv
 
 See [`docs/04-TECHNICAL-DESIGN.md`](docs/04-TECHNICAL-DESIGN.md).
 
-## GPT-5.6 usage (M4 target)
+## GPT-5.6 usage
 
-The production AI path will use the OpenAI Responses API with `gpt-5.6`, image input, `store: false`, and strict Structured Outputs. M1 contains no AI call or simulated AI response.
+The production AI path uses the OpenAI Responses API with `gpt-5.6`, high-detail PNG input, `store: false`, low reasoning effort, and strict Structured Outputs. It permits at most one bounded repair or retry, stores visible attempt media in private R2, and emits staged room statuses while analysis runs asynchronously.
 
 GPT-5.6 performs genuinely multimodal work:
 

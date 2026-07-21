@@ -61,4 +61,47 @@ export const CREATE_ROOM_SCHEMA_SQL = `
 
   INSERT OR IGNORE INTO room_locks (singleton, active_attempt_id)
   VALUES (1, NULL);
+
+  CREATE TABLE IF NOT EXISTS analysis_attempts (
+    id TEXT PRIMARY KEY,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    task_id TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    source_canvas_seq INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    room_seq INTEGER NOT NULL,
+    media_id TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS media_objects (
+    id TEXT PRIMARY KEY,
+    attempt_id TEXT NOT NULL UNIQUE,
+    r2_key TEXT NOT NULL UNIQUE,
+    content_hash TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS analysis_results (
+    attempt_id TEXT PRIMARY KEY,
+    result_json TEXT,
+    failure_category TEXT,
+    disagreement INTEGER NOT NULL,
+    model_id TEXT,
+    response_id TEXT,
+    latency_ms INTEGER NOT NULL,
+    used_repair INTEGER NOT NULL,
+    completed_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+    scope TEXT NOT NULL,
+    bucket_start TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    PRIMARY KEY (scope, bucket_start)
+  );
 `;
