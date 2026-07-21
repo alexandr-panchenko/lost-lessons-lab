@@ -13,7 +13,25 @@ const page = await browser.newPage({
 const consoleErrors: string[] = [];
 const attemptRequests: string[] = [];
 page.on("console", (message) => {
-  if (message.type() === "error") consoleErrors.push(message.text());
+  if (message.type() !== "error") return;
+  const text = message.text().toLowerCase();
+  let source = "unknown";
+  try {
+    const pathname = new URL(message.location().url).pathname;
+    source = /\/api\/rooms\/[^/]+\/media\//u.test(pathname)
+      ? "room-media"
+      : /\/api\/rooms\/[^/]+\/attempts$/u.test(pathname)
+        ? "room-attempts"
+        : pathname.startsWith("/assets/")
+          ? "client-asset"
+          : "application";
+  } catch {
+    // Keep the category opaque when the console message has no source URL.
+  }
+  const status = ["400", "401", "403", "404", "429", "500", "503"].find(
+    (candidate) => text.includes(candidate),
+  );
+  consoleErrors.push(`${source}:${status ?? "non-http"}`);
 });
 page.on("request", (request) => {
   if (/\/api\/rooms\/[^/]+\/attempts$/u.test(new URL(request.url()).pathname)) {
@@ -99,7 +117,9 @@ try {
     throw new Error("Production hero did not make exactly two AI requests");
   }
   if (consoleErrors.length > 0) {
-    throw new Error("Production hero emitted a browser console error");
+    throw new Error(
+      `Production hero emitted browser console categories: ${consoleErrors.join(",")}`,
+    );
   }
 
   console.info(

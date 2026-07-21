@@ -20,6 +20,9 @@ async function openStudentPreview(page: Page): Promise<void> {
     .waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "Preview as student" }).click();
   await page.getByText("Student view", { exact: true }).waitFor();
+  await page.getByText("Live room connected", { exact: true }).waitFor({
+    timeout: 15_000,
+  });
 }
 
 try {
