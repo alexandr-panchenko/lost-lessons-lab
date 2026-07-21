@@ -40,7 +40,9 @@ try {
   await page
     .getByRole("heading", { name: "Fractions and the bridge" })
     .waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page.getByRole("button", { name: "Run my solution" }).click();
   await page
     .getByText(
@@ -57,6 +59,7 @@ try {
   await page
     .getByRole("heading", { name: "Safe crossing" })
     .waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Teacher view" }).click();
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Bridge too short" }).waitFor();
   await page.getByRole("heading", { name: "Safe crossing" }).waitFor();

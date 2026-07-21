@@ -13,6 +13,7 @@ export default defineConfig({
           AI_IP_LIMIT_PER_HOUR: "2",
           AI_ROOM_LIMIT_PER_HOUR: "2",
           OPENAI_API_KEY: "test-openai-key-unused-while-ai-is-disabled",
+          PUBLIC_SUPPORTING_SCENARIOS_ENABLED: "true",
           ROOM_TOKEN_PEPPER: "test-room-pepper-with-at-least-thirty-two-bytes",
         },
       },

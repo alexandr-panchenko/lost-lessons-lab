@@ -70,12 +70,17 @@ input {
 }
 
 .room-header {
+  position: sticky;
+  z-index: 10;
+  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 0;
   border-bottom: 1px solid #b8b1a5;
+  background: rgb(246 241 231 / 96%);
+  backdrop-filter: blur(0.5rem);
 }
 
 .brand {
@@ -87,9 +92,45 @@ input {
 
 .room-header__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.75rem;
+}
+
+.view-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border: 1px solid #17365d;
+  border-radius: 999px;
+  background: #fffdf8;
+}
+
+.view-switcher > span {
+  padding: 0 0.35rem 0 0.55rem;
+  color: #5d6572;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.view-switcher button {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  color: #17365d;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.view-switcher button[aria-pressed="true"] {
+  color: #fff;
+  background: #17365d;
 }
 
 .connection {
@@ -171,10 +212,22 @@ input {
   line-height: 1.45;
 }
 
+.room-intro__launch {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.room-intro__launch > span {
+  color: #526176;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .feed {
   display: grid;
   gap: 1rem;
   margin-top: 1rem;
+  scroll-margin-top: 5.5rem;
 }
 
 .feed-card,
@@ -308,6 +361,13 @@ blockquote {
   box-shadow: 0.2rem 0.2rem 0 #e8ad42;
 }
 
+.primary-button--judge {
+  width: 100%;
+  min-height: 3.6rem;
+  padding-inline: 1.2rem;
+  font-size: 1.05rem;
+}
+
 .teacher-form {
   display: grid;
   gap: 0.65rem;
@@ -345,6 +405,7 @@ blockquote {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 1fr);
   gap: 1.5rem;
+  margin-top: 1.5rem;
   margin-bottom: 1rem;
   border-color: #92501f;
   box-shadow: 0.35rem 0.35rem 0 #e8ad42;

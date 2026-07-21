@@ -192,6 +192,19 @@ async function createRoom(
   });
 }
 
+function createSupportingRoom(
+  context: Context<AppBindings>,
+  fixture: Exclude<RoomFixture, "bridge" | "judge">,
+): Promise<Response> | Response {
+  if (context.env.PUBLIC_SUPPORTING_SCENARIOS_ENABLED !== "true") {
+    return new Response(null, {
+      headers: { ...ROOM_HEADERS, Location: "/" },
+      status: 302,
+    });
+  }
+  return createRoom(context, fixture);
+}
+
 export function bearerToken(value: string | undefined): string | null {
   if (value === undefined || !value.startsWith("Bearer ")) {
     return null;
@@ -203,9 +216,11 @@ export function bearerToken(value: string | undefined): string | null {
 export function registerRoomRoutes(app: Hono<AppBindings>): void {
   app.get("/", (context) => createRoom(context, "bridge"));
   app.get("/judge", (context) => createRoom(context, "judge"));
-  app.get("/water", (context) => createRoom(context, "water"));
-  app.get("/speed", (context) => createRoom(context, "speed"));
-  app.get("/structure", (context) => createRoom(context, "structure"));
+  app.get("/water", (context) => createSupportingRoom(context, "water"));
+  app.get("/speed", (context) => createSupportingRoom(context, "speed"));
+  app.get("/structure", (context) =>
+    createSupportingRoom(context, "structure"),
+  );
 
   app.get("/api/rooms/:roomId/bootstrap", async (context) => {
     const roomId = RoomIdSchema.safeParse(context.req.param("roomId"));

@@ -141,6 +141,8 @@ Dates use ISO format.
 | D-086 | 2026-07-21 | Evidence claims stay `PENDING` until backed by a file, test, URL, screenshot, commit, or video timestamp. | Submission copy must not outrun the product. | The evidence matrix is updated during implementation. |
 | D-087 | 2026-07-21 | Use one primary Codex build session when practical, but do not endanger the project to preserve one thread. | A coherent build trail is useful, but a failed session is not sacred. | Record the representative Session ID and disclose meaningful additional sessions. |
 | D-088 | 2026-07-21 | Create the `build-week-submission` tag only after final production verification. | The tag must identify the exact judged release. | No tag is pre-created in the design packet. |
+| D-089 | 2026-07-21 | Supersede the teacher-token preview in D-084 with a same-tab switch to the room's real student capability. | Human review found that copy/open-tab friction obscured the judge path and that a preview flag was weaker evidence than the actual learner role. | `/judge` presents one dominant learner action, retains a Teacher/Student control while the originating teacher capability is present, and preserves separate share links. |
+| D-090 | 2026-07-21 | Hide water, speed, structure, and every unapproved scenario from the public rescue build without deleting implementation code. | Human review reopened the hero and suspended release readiness; public breadth must not outrun visual approval. | Public navigation and supported-topic messaging promise only the bridge/fractions flow; disabled scenario routes return to the bridge entry. |
 
 ## Change protocol
 

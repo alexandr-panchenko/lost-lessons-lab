@@ -10,12 +10,12 @@ test("an unsupported topic keeps the room and offers supported alternatives", as
   await page.getByRole("button", { name: "Use the bridge sample" }).click();
   await expect(
     page.getByText(
-      "That topic is not available in this demo. Try Fractions, Water and volume, or Speed and collision.",
+      "That topic is not available in this rescue build. Try Fractions.",
     ),
   ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Water and volume" }),
-  ).toHaveAttribute("href", "/water");
+  await expect(page.getByText("Water and volume")).toHaveCount(0);
+  await expect(page.getByText("Speed and collision")).toHaveCount(0);
+  await expect(page.getByText("Structure and load")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Fractions and the bridge" }),
   ).toBeVisible();
@@ -32,7 +32,9 @@ test("an upload failure preserves ink and exposes an explicit retry", async ({
     });
   });
   await page.goto("/judge");
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   const operationsBefore = await page
     .getByText(/shared operations saved/u)
     .innerText();
@@ -53,7 +55,9 @@ test("a renderer failure keeps the verified transcript and retry control", async
     Reflect.set(window, "__LOST_LESSONS_TEST_RENDERER_FAILURE__", true);
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Run manual value" }).click();
   await expect(
@@ -78,7 +82,9 @@ test("the low-detail notice stays in flow and leaves room controls usable", asyn
     });
   });
   await page.goto("/judge");
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Run manual value" }).click();
 
@@ -87,6 +93,7 @@ test("the low-detail notice stays in flow and leaves room controls usable", asyn
   });
   await expect(notice).toBeVisible();
   await expect(notice).toHaveCSS("position", "static");
+  await page.getByRole("button", { name: "Teacher view" }).click();
   await page.getByRole("button", { name: "Reset current task" }).click();
   await expect(page.locator(".simulation-card")).toHaveCount(0);
 });

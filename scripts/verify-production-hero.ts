@@ -44,7 +44,9 @@ try {
     waitUntil: "domcontentloaded",
   });
   await page.getByText("Prepared judge sample").waitFor();
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page
     .getByText(/shared operations saved/u)
     .waitFor({ state: "visible" });
@@ -96,6 +98,7 @@ try {
     });
   }
 
+  await page.getByRole("button", { name: "Teacher view" }).click();
   await page.reload({ waitUntil: "domcontentloaded" });
   await page
     .getByRole("heading", { name: "Bridge too short" })

@@ -13,7 +13,7 @@ Implementation status is tracked in [`STATUS.md`](STATUS.md).
 ## 60–90 second judge path
 
 1. Open `/judge`; it creates a fresh real room and redirects to its unique address.
-2. Choose **Preview as student** and submit the prepared handwritten fraction mistake.
+2. Choose **Try the lesson as a student**; the same tab enters the real learner capability and places the task beside **Run my solution**.
 3. Watch GPT-5.6 show how it read the work and extract `4.08 m`.
 4. Let the bridge simulation run: the bridge is too short and the vehicle falls safely into a comic rescue area.
 5. Apply the prepared editable correction to `3/4 = 0.75`, submit again, and watch the successful crossing.
@@ -54,7 +54,7 @@ common secret/capability patterns.
 
 ## Product
 
-Tutors often recognize a specific gap—fractions, percentages, volume, proportions, or speed—but creating a personalized visual explanation takes time. Typical practice products reduce a mistake to a red mark. Lost Lessons Lab instead treats the learner's math as the controller for a simulated world.
+Tutors often recognize a specific fraction gap, but creating a personalized visual explanation takes time. Typical practice products reduce a mistake to a red mark. Lost Lessons Lab instead treats the learner's math as the controller for a simulated world.
 
 The core loop is:
 
@@ -99,7 +99,8 @@ Required:
 - manual parameter fallback when AI analysis fails;
 - isolated `/judge` room per visit.
 
-Supporting simulation families, only if completed and tested:
+Supporting simulation code remains in the repository but is hidden from the
+public rescue build pending visual approval:
 
 1. water and volume;
 2. speed, time, and collision;
@@ -220,7 +221,7 @@ One primary Codex implementation session executed the frozen plan from
 Cloudflare shell (`7c5b502`), persistent capability rooms (`0c39b42`), realtime
 layered canvas and bridge physics (`b76eede`), GPT-5.6 interpretation
 (`969f99d`), complete hero (`80d93aa`), three independently tested supporting
-families (`c586be7`, `2a5ffbb`, `81af212`), reliability controls (`3c9afce`),
+families now hidden from public navigation (`c586be7`, `2a5ffbb`, `81af212`), reliability controls (`3c9afce`),
 accessibility polish (`b990abe`), and the release audit (`eef7c03`).
 
 At every milestone Codex updated [`STATUS.md`](STATUS.md), added automated tests,

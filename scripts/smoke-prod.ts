@@ -81,59 +81,13 @@ if (firstRoom.roomId === secondRoom.roomId) {
   throw new Error("Two judge requests returned the same room.");
 }
 
-const waterRoom = await createRoom("/water");
-const waterTeacherResponse = await bootstrap(waterRoom.roomId, waterRoom.token);
-if (!waterTeacherResponse.ok) {
-  throw new Error(`Water bootstrap failed with ${waterTeacherResponse.status}`);
-}
-
-const speedRoom = await createRoom("/speed");
-const speedTeacherResponse = await bootstrap(speedRoom.roomId, speedRoom.token);
-if (!speedTeacherResponse.ok) {
-  throw new Error(`Speed bootstrap failed with ${speedTeacherResponse.status}`);
-}
-
-const structureRoom = await createRoom("/structure");
-const structureTeacherResponse = await bootstrap(
-  structureRoom.roomId,
-  structureRoom.token,
-);
-if (!structureTeacherResponse.ok) {
-  throw new Error(
-    `Structure bootstrap failed with ${structureTeacherResponse.status}`,
-  );
-}
-const structureTeacher = BootstrapSchema.parse(
-  await structureTeacherResponse.json(),
-);
-if (
-  structureTeacher.fixtureId !== "structure-platform-v1" ||
-  structureTeacher.canvasOperations.length < 5 ||
-  !structureTeacher.events.some(
-    (event) => event.type === "task.preview" && event.visibility === "all",
-  )
-) {
-  throw new Error("Production structure room is not a prepared real room.");
-}
-const speedTeacher = BootstrapSchema.parse(await speedTeacherResponse.json());
-if (
-  speedTeacher.fixtureId !== "speed-shuttle-v1" ||
-  speedTeacher.canvasOperations.length < 5 ||
-  !speedTeacher.events.some(
-    (event) => event.type === "task.preview" && event.visibility === "all",
-  )
-) {
-  throw new Error("Production speed room is not a prepared real room.");
-}
-const waterTeacher = BootstrapSchema.parse(await waterTeacherResponse.json());
-if (
-  waterTeacher.fixtureId !== "water-aquarium-v1" ||
-  waterTeacher.canvasOperations.length < 5 ||
-  !waterTeacher.events.some(
-    (event) => event.type === "task.preview" && event.visibility === "all",
-  )
-) {
-  throw new Error("Production water room is not a prepared real room.");
+for (const path of ["/water", "/speed", "/structure"] as const) {
+  const response = await fetch(new URL(path, productionOrigin), {
+    redirect: "manual",
+  });
+  if (response.status !== 302 || response.headers.get("location") !== "/") {
+    throw new Error(`${path} is still publicly enabled.`);
+  }
 }
 
 const teacherResponse = await bootstrap(firstRoom.roomId, firstRoom.token);

@@ -18,7 +18,9 @@ async function openStudentPreview(page: Page): Promise<void> {
   await page
     .getByRole("heading", { name: "Fractions and the bridge" })
     .waitFor({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page.getByText("Student view", { exact: true }).waitFor();
   await page.getByText("Live room connected", { exact: true }).waitFor({
     timeout: 15_000,
@@ -82,7 +84,7 @@ try {
   if (!preservedCapability)
     throw new Error("Keyboard skip changed the room capability fragment");
   await keyboardPage
-    .getByRole("button", { name: "Preview as student" })
+    .getByRole("button", { name: "Try the lesson as a student" })
     .click();
   await keyboardPage.getByText("Student view", { exact: true }).waitFor();
   await keyboardPage.getByRole("button", { name: "Run manual value" }).click();

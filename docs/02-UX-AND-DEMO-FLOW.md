@@ -59,7 +59,7 @@ The room creates two links exactly once:
 
 There is no registration, link rotation, revocation, recovery, or resending workflow in the Build Week version.
 
-The teacher view exposes a **Preview as student** switch so one judge can complete the full flow in one tab. This changes the rendered perspective; it does not create a second user or duplicate state.
+The teacher view exposes a dominant **Try the lesson as a student** action plus a persistent **Teacher / Student** view control. The action changes the same tab to the existing room's real student capability; it does not create a second user, duplicate state, open another tab, or require copying a link. A separately opened student link never receives the teacher capability or the return control.
 
 ## One continuous learning feed
 
@@ -98,7 +98,7 @@ Archived attempt canvases can render as saved images until the user opens their 
 3. The teacher clicks a skill or describes a gap in free text.
 4. The agent maps the request to a supported template or clearly offers alternatives.
 5. A task appears in the room.
-6. The teacher copies the student link or selects **Preview as student**.
+6. For the judge path, the teacher selects **Try the lesson as a student** and the same tab enters the real student capability. For real collaboration, the separate student link remains available below the feed.
 7. During learner work, the teacher sees the learner-facing feed and may add annotations or a short hint.
 8. Teacher marks remain a separate layer and never enter learner analysis.
 9. The teacher sees attempts, interpretations, simulations, and achievements.

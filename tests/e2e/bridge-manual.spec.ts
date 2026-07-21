@@ -11,7 +11,9 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   });
 
   await page.goto("/judge");
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await expect(page.getByText(/shared operations saved/u)).toBeVisible();
 
   await page.getByLabel("Bridge length").fill("4.08");
@@ -59,6 +61,7 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   await expect(page.getByText(/9 meter bridge spans/u)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Fixed It" })).toBeVisible();
 
+  await page.getByRole("button", { name: "Teacher view" }).click();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Bridge too short" }),
@@ -79,7 +82,9 @@ test("manual bridge form rejects unsafe ranges without creating a run", async ({
   page,
 }) => {
   await page.goto("/judge");
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page.getByLabel("Bridge length").fill("-2");
   await page.getByRole("button", { name: "Run manual value" }).click();
   await expect(

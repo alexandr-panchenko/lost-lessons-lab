@@ -21,6 +21,7 @@ import {
   resetRoom,
   roomSocketUrl,
   submitAnalysisAttempt,
+  type RoomLocation,
 } from "./room/room-client";
 import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
 import { ManualSpeedPanel } from "./simulation/ManualSpeedPanel";
@@ -85,7 +86,6 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [commandError, setCommandError] = useState("");
   const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const [previewStudent, setPreviewStudent] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
   const [submittingAnalysis, setSubmittingAnalysis] = useState(false);
@@ -96,24 +96,35 @@ export function App() {
   const pendingCommands = useRef(new Map<string, SocketAuthenticatedMessage>());
   const lastSeenSeq = useRef(0);
   const clientId = useRef(crypto.randomUUID());
+  const viewLocations = useRef<{
+    student?: RoomLocation;
+    teacher?: RoomLocation;
+  }>({});
+  const focusStudentTask = useRef(false);
   const launchAiRun = useCallback((attemptId: string) => {
     setReadyAiRuns((current) => new Set(current).add(attemptId));
   }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
+      const nextLocation = readRoomLocation(window.location);
+      const knownRoomId =
+        viewLocations.current.teacher?.roomId ??
+        viewLocations.current.student?.roomId;
+      if (nextLocation?.roomId !== knownRoomId) {
+        viewLocations.current = {};
+      }
       setRoom(null);
       setError(null);
       setCommandError("");
       setConnection("connecting");
-      setPreviewStudent(false);
       pendingCommands.current.clear();
       setPendingCount(0);
       setSubmittingAnalysis(false);
       setRetryAnalysisUpload(false);
       setReadyAiRuns(new Set());
       lastSeenSeq.current = 0;
-      setRoomLocation(readRoomLocation(window.location));
+      setRoomLocation(nextLocation);
     };
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
@@ -393,6 +404,17 @@ export function App() {
 
     void fetchRoomBootstrap(roomLocation, controller.signal)
       .then((bootstrap) => {
+        if (bootstrap.role === "teacher") {
+          viewLocations.current.teacher = roomLocation;
+          if (bootstrap.studentCapability !== undefined) {
+            viewLocations.current.student = {
+              roomId: bootstrap.roomId,
+              token: bootstrap.studentCapability,
+            };
+          }
+        } else {
+          viewLocations.current.student = roomLocation;
+        }
         lastSeenSeq.current = bootstrap.roomSeq;
         setRoom(bootstrap);
         connect();
@@ -413,6 +435,17 @@ export function App() {
       socketRef.current = null;
     };
   }, [roomLocation]);
+
+  useEffect(() => {
+    if (room?.role !== "student" || !focusStudentTask.current) return;
+    focusStudentTask.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      const feed = document.querySelector<HTMLElement>("#learning-feed");
+      feed?.focus({ preventScroll: true });
+      feed?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [room?.role, room?.roomId]);
 
   function queueCommand(
     idempotencyKey: string,
@@ -449,7 +482,7 @@ export function App() {
   }
 
   const isTeacher = room.role === "teacher";
-  const studentPerspective = room.role === "student" || previewStudent;
+  const studentPerspective = room.role === "student";
   const activeLayer = studentPerspective ? "student" : "teacher";
   const isWaterRoom = room.fixtureId.startsWith("water-");
   const isSpeedRoom = room.fixtureId.startsWith("speed-");
@@ -458,6 +491,9 @@ export function App() {
     isTeacher && room.studentCapability !== undefined
       ? `${window.location.origin}/r/${room.roomId}#token=${room.studentCapability}`
       : null;
+  const canSwitchViews =
+    viewLocations.current.teacher?.roomId === room.roomId &&
+    viewLocations.current.student?.roomId === room.roomId;
   const latestStudentSeq = room.canvasOperations.reduce(
     (latest, record) =>
       record.layer === "student" ? Math.max(latest, record.seq) : latest,
@@ -477,13 +513,25 @@ export function App() {
     }
   }
 
+  function switchRoomView(role: "student" | "teacher"): void {
+    const nextLocation = viewLocations.current[role];
+    if (
+      nextLocation === undefined ||
+      nextLocation.token === roomLocation?.token
+    )
+      return;
+    focusStudentTask.current = role === "student";
+    const token = new URLSearchParams({ token: nextLocation.token });
+    window.location.hash = token.toString();
+  }
+
   function sendCanvasOperation(operation: CanvasOperation): void {
     const requestId = crypto.randomUUID();
     queueCommand(operation.clientOperationId, {
       clientId: clientId.current,
       payload: {
         operation,
-        previewAsStudent: isTeacher && previewStudent,
+        previewAsStudent: false,
       },
       requestId,
       type: "canvas.operation",
@@ -498,7 +546,7 @@ export function App() {
       payload: {
         idempotencyKey,
         inputs,
-        previewAsStudent: isTeacher && previewStudent,
+        previewAsStudent: false,
         sourceCanvasSeq: latestStudentSeq,
         templateId: "bridge",
       },
@@ -515,7 +563,7 @@ export function App() {
       payload: {
         idempotencyKey,
         inputs,
-        previewAsStudent: isTeacher && previewStudent,
+        previewAsStudent: false,
         sourceCanvasSeq: latestStudentSeq,
         templateId: "water",
       },
@@ -532,7 +580,7 @@ export function App() {
       payload: {
         idempotencyKey,
         inputs,
-        previewAsStudent: isTeacher && previewStudent,
+        previewAsStudent: false,
         sourceCanvasSeq: latestStudentSeq,
         templateId: "speed",
       },
@@ -551,7 +599,7 @@ export function App() {
       payload: {
         idempotencyKey,
         inputs,
-        previewAsStudent: isTeacher && previewStudent,
+        previewAsStudent: false,
         sourceCanvasSeq: latestStudentSeq,
         templateId: "structure",
       },
@@ -591,7 +639,7 @@ export function App() {
         contentHash: raster.contentHash,
         idempotencyKey: crypto.randomUUID(),
         mediaBase64: raster.mediaBase64,
-        previewAsStudent: isTeacher && previewStudent,
+        previewAsStudent: false,
         room: roomLocation,
         sourceCanvasSeq: latestStudentSeq,
       });
@@ -677,6 +725,27 @@ export function App() {
           Lost Lessons Lab
         </a>
         <div className="room-header__controls">
+          {canSwitchViews && (
+            <div className="view-switcher" aria-label="Room view">
+              <span>View</span>
+              <button
+                aria-label="Teacher view"
+                aria-pressed={isTeacher}
+                onClick={() => switchRoomView("teacher")}
+                type="button"
+              >
+                Teacher
+              </button>
+              <button
+                aria-label="Student view"
+                aria-pressed={studentPerspective}
+                onClick={() => switchRoomView("student")}
+                type="button"
+              >
+                Student
+              </button>
+            </div>
+          )}
           <span
             className={`connection connection--${connection}`}
             role="status"
@@ -688,36 +757,24 @@ export function App() {
                 : "Connecting to live room"}
           </span>
           {isTeacher && (
-            <>
-              <button
-                aria-pressed={previewStudent}
-                className="secondary-button"
-                onClick={() => setPreviewStudent((value) => !value)}
-                type="button"
-              >
-                {previewStudent
-                  ? "Return to teacher view"
-                  : "Preview as student"}
-              </button>
-              <button
-                className="secondary-button"
-                disabled={
-                  resetting ||
-                  pendingCount > 0 ||
-                  room.attempts.some(
-                    (attempt) =>
-                      "mode" in attempt &&
-                      attempt.mode === "ai" &&
-                      attempt.status !== "complete" &&
-                      attempt.status !== "failed",
-                  )
-                }
-                onClick={() => void resetCurrentTask()}
-                type="button"
-              >
-                {resetting ? "Resetting…" : "Reset current task"}
-              </button>
-            </>
+            <button
+              className="secondary-button"
+              disabled={
+                resetting ||
+                pendingCount > 0 ||
+                room.attempts.some(
+                  (attempt) =>
+                    "mode" in attempt &&
+                    attempt.mode === "ai" &&
+                    attempt.status !== "complete" &&
+                    attempt.status !== "failed",
+                )
+              }
+              onClick={() => void resetCurrentTask()}
+              type="button"
+            >
+              {resetting ? "Resetting…" : "Reset current task"}
+            </button>
           )}
         </div>
       </header>
@@ -731,38 +788,25 @@ export function App() {
           Write a real solution, see how it was interpreted, and let the numbers
           control the physical result.
         </p>
-        <p className="room-intro__next">
-          <strong>Next:</strong>{" "}
-          {studentPerspective
-            ? "review the problem, then write or run the prepared solution."
-            : "choose the learner’s gap, then preview their workspace."}
-        </p>
-      </section>
-
-      {isTeacher && !previewStudent && studentLink !== null && (
-        <section className="invite-card" aria-labelledby="invite-title">
-          <div>
-            <p className="feed-card__label">Separate learner access</p>
-            <h2 id="invite-title">Invite the student</h2>
-            <p>
-              The learner link sees the shared task but never private teacher
-              setup.
-            </p>
-          </div>
-          <div className="invite-card__actions">
-            <label htmlFor="student-link">Student link</label>
-            <input id="student-link" readOnly value={studentLink} />
+        {isTeacher && canSwitchViews ? (
+          <div className="room-intro__next room-intro__launch">
+            <strong>See the lesson from the learner&apos;s side.</strong>
             <button
-              className="secondary-button"
-              onClick={copyStudentLink}
+              className="primary-button primary-button--judge"
+              onClick={() => switchRoomView("student")}
               type="button"
             >
-              Copy student link
+              Try the lesson as a student
             </button>
-            <span aria-live="polite">{copyStatus}</span>
+            <span>Same room, real student access, no copied link.</span>
           </div>
-        </section>
-      )}
+        ) : (
+          <p className="room-intro__next">
+            <strong>Next:</strong> review the problem, then run the prepared
+            solution.
+          </p>
+        )}
+      </section>
 
       <div
         className="feed"
@@ -775,6 +819,33 @@ export function App() {
           events={room.events}
           studentPerspective={studentPerspective}
         />
+        {studentPerspective && (
+          <AnalysisSubmitPanel
+            disabled={
+              connection !== "connected" ||
+              room.attempts.some(
+                (attempt) =>
+                  "mode" in attempt &&
+                  attempt.mode === "ai" &&
+                  attempt.status !== "complete" &&
+                  attempt.status !== "failed",
+              )
+            }
+            onSubmit={() => void submitHandwritingAttempt()}
+            pendingOperations={pendingCount}
+            retryUpload={retryAnalysisUpload}
+            submitting={submittingAnalysis}
+            templateId={
+              isWaterRoom
+                ? "water"
+                : isSpeedRoom
+                  ? "speed"
+                  : isStructureRoom
+                    ? "structure"
+                    : "bridge"
+            }
+          />
+        )}
         <CanvasWorkspace
           activeLayer={activeLayer}
           connected={connection === "connected"}
@@ -790,31 +861,6 @@ export function App() {
         />
         {studentPerspective ? (
           <>
-            <AnalysisSubmitPanel
-              disabled={
-                connection !== "connected" ||
-                room.attempts.some(
-                  (attempt) =>
-                    "mode" in attempt &&
-                    attempt.mode === "ai" &&
-                    attempt.status !== "complete" &&
-                    attempt.status !== "failed",
-                )
-              }
-              onSubmit={() => void submitHandwritingAttempt()}
-              pendingOperations={pendingCount}
-              retryUpload={retryAnalysisUpload}
-              submitting={submittingAnalysis}
-              templateId={
-                isWaterRoom
-                  ? "water"
-                  : isSpeedRoom
-                    ? "speed"
-                    : isStructureRoom
-                      ? "structure"
-                      : "bridge"
-              }
-            />
             {isStructureRoom ? (
               <ManualStructurePanel
                 disabled={
@@ -882,8 +928,8 @@ export function App() {
             <strong>Teacher annotation mode</strong>
             <p>
               Dashed teacher marks are shared live but excluded from every
-              learner attempt. Choose Preview as student to submit the learner
-              layer.
+              learner attempt. Choose Student view to enter the real learner
+              workspace in this tab.
             </p>
           </section>
         )}
@@ -979,6 +1025,31 @@ export function App() {
           );
         })}
       </div>
+
+      {isTeacher && studentLink !== null && (
+        <section className="invite-card" aria-labelledby="invite-title">
+          <div>
+            <p className="feed-card__label">Separate learner access</p>
+            <h2 id="invite-title">Invite the student</h2>
+            <p>
+              For real collaboration, share this learner capability. The judge
+              path above does not require copying it.
+            </p>
+          </div>
+          <div className="invite-card__actions">
+            <label htmlFor="student-link">Student link</label>
+            <input id="student-link" readOnly value={studentLink} />
+            <button
+              className="secondary-button"
+              onClick={copyStudentLink}
+              type="button"
+            >
+              Copy student link
+            </button>
+            <span aria-live="polite">{copyStatus}</span>
+          </div>
+        </section>
+      )}
 
       <p className="command-error" role="alert">
         {commandError}

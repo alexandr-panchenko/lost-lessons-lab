@@ -38,7 +38,9 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
   await page.goto("/");
   await drawStroke(page, "Teacher annotation", 0.25);
   await expect(page.getByText("1 shared operations saved")).toBeVisible();
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
 
   await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(
@@ -59,7 +61,7 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
   expect(attemptBodies).toHaveLength(1);
   expect(attemptBodies[0]).toMatchObject({
     mediaBase64: expect.any(String),
-    previewAsStudent: true,
+    previewAsStudent: false,
     sourceCanvasSeq: expect.any(Number),
   });
   expect((attemptBodies[0] as { contentHash: string }).contentHash).toMatch(

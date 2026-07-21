@@ -1,4 +1,4 @@
-import { Fragment, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import type { RoomFeedEvent } from "../../shared/protocol";
 
@@ -7,13 +7,12 @@ type LearningFeedProps = {
   studentPerspective: boolean;
 };
 
-const SUPPORTED_PRACTICE_PATTERN =
-  /fraction|percent|measure|proportion|volume|water|flow|speed|time|distance|collision|multiplication|load|structure/iu;
+const SUPPORTED_PRACTICE_PATTERN = /fraction/iu;
 
 export function practiceRequestStatus(request: string): string {
   const normalized = request.trim() || "Fractions";
   if (!SUPPORTED_PRACTICE_PATTERN.test(normalized)) {
-    return "That topic is not available in this demo. Try Fractions, Water and volume, or Speed and collision.";
+    return "That topic is not available in this rescue build. Try Fractions.";
   }
   return `${normalized} selected. Choose a supported practice chip or use the bridge sample below.`;
 }
@@ -36,6 +35,7 @@ export function LearningFeed({
         .filter((event) => !studentPerspective || event.visibility === "all")
         .map((event) => {
           if (event.type === "room.welcome") {
+            if (studentPerspective) return null;
             return (
               <article className="feed-card feed-card--welcome" key={event.seq}>
                 <p className="feed-card__label">Shared learning room</p>
@@ -52,32 +52,14 @@ export function LearningFeed({
                 <h2>{event.payload.prompt}</h2>
                 <div className="skill-list" aria-label="Supported skills">
                   {event.payload.supportedSkills.map((skill) => (
-                    <Fragment key={skill}>
-                      {skill === "Water and volume" ||
-                      skill === "Speed and collision" ||
-                      skill === "Structure and load" ? (
-                        <a
-                          className="skill-chip"
-                          href={
-                            skill === "Water and volume"
-                              ? "/water"
-                              : skill === "Speed and collision"
-                                ? "/speed"
-                                : "/structure"
-                          }
-                        >
-                          {skill}
-                        </a>
-                      ) : (
-                        <button
-                          className="skill-chip"
-                          onClick={() => setPracticeRequest(skill)}
-                          type="button"
-                        >
-                          {skill}
-                        </button>
-                      )}
-                    </Fragment>
+                    <button
+                      className="skill-chip"
+                      key={skill}
+                      onClick={() => setPracticeRequest(skill)}
+                      type="button"
+                    >
+                      {skill}
+                    </button>
                   ))}
                 </div>
                 <form className="teacher-form" onSubmit={submitSetup}>

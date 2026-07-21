@@ -5,7 +5,9 @@ test("the first screen names the next action and exposes a keyboard skip path", 
 }) => {
   await page.goto("/judge");
 
-  const nextAction = page.getByText("Next:", { exact: true });
+  const nextAction = page.getByRole("button", {
+    name: "Try the lesson as a student",
+  });
   await expect(nextAction).toBeVisible();
   const nextActionBox = await nextAction.boundingBox();
   expect(nextActionBox).not.toBeNull();
@@ -42,9 +44,11 @@ test("the first screen names the next action and exposes a keyboard skip path", 
     .fill("quadratic equations");
   await page.getByRole("button", { name: "Use the bridge sample" }).click();
   const setupStatus = page.locator(".inline-status[aria-live='polite']");
-  await expect(setupStatus).toContainText("not available in this demo");
+  await expect(setupStatus).toContainText("not available in this rescue build");
 
-  const preview = page.getByRole("button", { name: "Preview as student" });
+  const preview = page.getByRole("button", {
+    name: "Try the lesson as a student",
+  });
   await preview.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("Student view", { exact: true })).toBeVisible();
@@ -112,7 +116,9 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
   });
 
   await page.goto("/judge");
-  await page.getByRole("button", { name: "Preview as student" }).click();
+  await page
+    .getByRole("button", { name: "Try the lesson as a student" })
+    .click();
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Run manual value" }).click();
   await expect(

@@ -10,7 +10,7 @@
 
 ## Steps
 
-1. Open `/judge`; wait for the fresh room to load, then choose **Preview as student**.
+1. Open `/judge`; wait for the fresh room to load, then choose **Try the lesson as a student**.
 2. Use the prepared handwritten mistake and press **Run my solution**.
 3. Read the GPT-5.6 interpretation, then let the countdown start the bridge simulation.
 4. After the comic failure, press **Apply prepared correction**, then press **Run my solution** again.
@@ -22,7 +22,7 @@ The first submission builds a `4.08 m` bridge and fails safely. The second build
 
 ## Reset
 
-Use **Reset current task** in the room. Reopening `/judge` always creates a completely new room.
+Choose **Teacher** in the persistent view control, then use **Reset current task**. Reopening `/judge` always creates a completely new room.
 
 ## Accessibility controls
 
