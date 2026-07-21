@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { parsePublicEnvironment, type WorkerEnv } from "./env";
 import { registerAttemptRoutes } from "./routes/attempts";
 import { registerRoomRoutes } from "./routes/rooms";
+import { registerResetRoutes } from "./routes/reset";
 
 export { RoomDurableObject } from "./room/RoomDurableObject";
 
@@ -10,6 +11,7 @@ const app = new Hono<{ Bindings: WorkerEnv }>();
 
 registerRoomRoutes(app);
 registerAttemptRoutes(app);
+registerResetRoutes(app);
 
 app.get("/api/health", (context) => {
   const environment = parsePublicEnvironment(context.env);

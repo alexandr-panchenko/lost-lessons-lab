@@ -5,6 +5,7 @@ import {
   AnalysisRecordSchema,
   AnalysisStatusSchema,
 } from "./analysis-types";
+import { AchievementAwardSchema } from "./achievement-types";
 import { CanvasOperationRecordSchema, CanvasOperationSchema } from "./canvas";
 import {
   BridgeOutcomeSchema,
@@ -102,6 +103,7 @@ export type SimulationRun = z.infer<typeof SimulationRunSchema>;
 
 export const RoomBootstrapSchema = z
   .object({
+    achievements: z.array(AchievementAwardSchema),
     createdAt: z.string(),
     analyses: z.array(AnalysisRecordSchema),
     attempts: z.array(RoomAttemptSchema),
@@ -186,6 +188,7 @@ export type SocketServerMessage =
       v: 1;
       payload: {
         analyses: z.infer<typeof AnalysisRecordSchema>[];
+        achievements: z.infer<typeof AchievementAwardSchema>[];
         attempts: RoomAttempt[];
         canvasOperations: z.infer<typeof CanvasOperationRecordSchema>[];
         fromSeq: number;
@@ -223,7 +226,11 @@ export type SocketServerMessage =
   | {
       type: "simulation.launch";
       v: 1;
-      payload: { attempt: RoomAttempt; run: SimulationRun };
+      payload: {
+        achievement: z.infer<typeof AchievementAwardSchema>;
+        attempt: RoomAttempt;
+        run: SimulationRun;
+      };
     }
   | {
       type: "analysis.status";
@@ -237,6 +244,7 @@ export type SocketServerMessage =
       type: "analysis.completed";
       v: 1;
       payload: {
+        achievement: z.infer<typeof AchievementAwardSchema>;
         analysis: z.infer<typeof AnalysisRecordSchema>;
         attempt: z.infer<typeof AiAttemptSchema>;
         run: SimulationRun;

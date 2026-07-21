@@ -1,4 +1,11 @@
+import { preparedBridgeHandwriting } from "../../src/shared/judge-handwriting";
+
 export const JUDGE_FIXTURE_ID = "judge-v1" as const;
+
+export const judgePreparedWrongOperations = preparedBridgeHandwriting(
+  "wrong",
+  "judge-v1-wrong",
+);
 
 export const bridgeRoomFixture = {
   fixtureLabel: "Prepared judge sample",

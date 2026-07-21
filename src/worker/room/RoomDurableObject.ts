@@ -21,6 +21,10 @@ import {
   type AttemptMedia,
 } from "../../shared/analysis-types";
 import {
+  AchievementAwardSchema,
+  type AchievementAward,
+} from "../../shared/achievement-types";
+import {
   BridgeSimulationInputsSchema,
   classifyBridgeInput,
   HERO_BRIDGE_PARAMETERS,
@@ -41,6 +45,7 @@ import {
   type SocketServerMessage,
 } from "../../shared/protocol";
 import type { WorkerEnv } from "../env";
+import { bridgeAchievement } from "../domain/achievements";
 import {
   constantTimeEqual,
   deriveStudentCapability,
@@ -138,6 +143,17 @@ type AnalysisResultRow = {
   response_id: string | null;
   result_json: string | null;
   used_repair: number;
+};
+
+type AchievementRow = {
+  achievement_key: string;
+  attempt_id: string;
+  category: string;
+  created_at: string;
+  description: string;
+  id: string;
+  room_seq: number;
+  title: string;
 };
 
 type SocketAttachment = {
@@ -415,6 +431,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
   }
 
   completeAiAttempt(input: z.input<typeof CompleteAiAttemptSchema>): {
+    achievement: AchievementAward;
     analysis: AnalysisRecord;
     attempt: AiAttempt;
     run: SimulationRun;
@@ -432,6 +449,13 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     const runId = `run_${crypto.randomUUID()}`;
     const randomSeed = crypto.randomUUID();
     let roomSeq = 0;
+    const achievement = bridgeAchievement({
+      attemptId: value.attemptId,
+      createdAt: completedAt,
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt(),
+      outcome,
+      roomSeq: this.nextSequence(),
+    });
     this.ctx.storage.transactionSync(() => {
       roomSeq = this.nextSequence();
       this.ctx.storage.sql.exec(
@@ -453,6 +477,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
         value.usedRepair ? 1 : 0,
         completedAt,
       );
+      this.insertAchievement(achievement);
       this.ctx.storage.sql.exec(
         `INSERT INTO simulation_runs (
           id, attempt_id, room_seq, template_id, template_version,
@@ -479,11 +504,11 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       throw new Error("Completed analysis state was not persisted");
     }
     this.broadcast({
-      payload: { analysis, attempt, run },
+      payload: { achievement, analysis, attempt, run },
       type: "analysis.completed",
       v: 1,
     });
-    return { analysis, attempt, run };
+    return { achievement, analysis, attempt, run };
   }
 
   failAiAttempt(input: {
@@ -562,10 +587,127 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       : { contentType: row.content_type, r2Key: row.r2_key };
   }
 
-  initialize(input: Initialization, events: RoomFeedEvent[]): void {
+  async resetCurrentTask(input: {
+    capability: string;
+    idempotencyKey: string;
+    initialCanvasOperations: CanvasOperation[];
+  }): Promise<
+    | { ok: true; room: RoomBootstrap }
+    | { ok: false; reason: "attempt_in_progress" | "permission_denied" }
+  > {
+    const capability = z.string().min(32).max(256).parse(input.capability);
+    const idempotencyKey = z
+      .string()
+      .min(8)
+      .max(128)
+      .parse(input.idempotencyKey);
+    const operations = input.initialCanvasOperations.map((operation) =>
+      CanvasOperationSchema.parse(operation),
+    );
+    const meta = this.roomMeta();
+    if (
+      meta === null ||
+      (await this.roleForCapability(meta, capability)) !== "teacher"
+    ) {
+      return { ok: false, reason: "permission_denied" };
+    }
+    const active = this.ctx.storage.sql
+      .exec<{ active_attempt_id: string | null }>(
+        "SELECT active_attempt_id FROM room_locks WHERE singleton = 1",
+      )
+      .toArray()[0]?.active_attempt_id;
+    if (active) return { ok: false, reason: "attempt_in_progress" };
+
+    const duplicate = this.ctx.storage.sql
+      .exec<{ room_seq: number }>(
+        "SELECT room_seq FROM task_resets WHERE idempotency_key = ?",
+        idempotencyKey,
+      )
+      .toArray()[0];
+    if (duplicate !== undefined) {
+      return {
+        ok: true,
+        room: await this.snapshot(meta, "teacher", capability),
+      };
+    }
+
+    const r2Keys = this.ctx.storage.sql
+      .exec<{ r2_key: string }>("SELECT r2_key FROM media_objects")
+      .toArray()
+      .map((row) => row.r2_key);
+    const createdAt = new Date().toISOString();
+    this.ctx.storage.transactionSync(() => {
+      let seq = this.nextSequence();
+      this.ctx.storage.sql.exec("DELETE FROM achievement_awards");
+      this.ctx.storage.sql.exec("DELETE FROM analysis_results");
+      this.ctx.storage.sql.exec("DELETE FROM media_objects");
+      this.ctx.storage.sql.exec("DELETE FROM analysis_attempts");
+      this.ctx.storage.sql.exec("DELETE FROM simulation_runs");
+      this.ctx.storage.sql.exec("DELETE FROM attempts");
+      this.ctx.storage.sql.exec("DELETE FROM canvas_operations");
+      this.ctx.storage.sql.exec(
+        "INSERT INTO task_resets (idempotency_key, room_seq, created_at) VALUES (?, ?, ?)",
+        idempotencyKey,
+        seq,
+        createdAt,
+      );
+      seq += 1;
+      for (const operation of operations) {
+        const layer = this.operationLayer(operation);
+        if (layer === null) throw new Error("Reset canvas layer is invalid");
+        this.ctx.storage.sql.exec(
+          `INSERT INTO canvas_operations (
+            seq, client_operation_id, workspace_id, layer,
+            author_id, operation_type, payload_json, created_at
+          ) VALUES (?, ?, ?, ?, 'judge-fixture', ?, ?, ?)`,
+          seq,
+          operation.clientOperationId,
+          operation.workspaceId,
+          layer,
+          operation.operation,
+          JSON.stringify(operation),
+          createdAt,
+        );
+        seq += 1;
+      }
+      this.ctx.storage.sql.exec(
+        "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
+        seq,
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE room_locks SET active_attempt_id = NULL WHERE singleton = 1",
+      );
+    });
+    if (r2Keys.length > 0) await this.env.MEDIA.delete(r2Keys);
+    const refreshedMeta = this.roomMeta();
+    if (refreshedMeta === null)
+      throw new Error("Reset room metadata is missing");
+    const room = await this.snapshot(refreshedMeta, "teacher", capability);
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment =
+        socket.deserializeAttachment() as SocketAttachment | null;
+      if (attachment !== null) {
+        this.send(socket, {
+          payload: await this.snapshot(refreshedMeta, attachment.role),
+          type: "room.snapshot",
+          v: 1,
+        });
+      }
+    }
+    return { ok: true, room };
+  }
+
+  initialize(
+    input: Initialization,
+    events: RoomFeedEvent[],
+    initialCanvasOperations: CanvasOperation[] = [],
+  ): void {
     const initialization = InitializationSchema.parse(input);
     const parsedEvents = events.map((event) =>
       RoomFeedEventSchema.parse(event),
+    );
+    const parsedOperations = initialCanvasOperations.map((operation) =>
+      CanvasOperationSchema.parse(operation),
     );
     const existing = this.roomMeta();
 
@@ -588,7 +730,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
         initialization.fixtureId,
         initialization.teacherCapabilityHash,
         initialization.studentCapabilityHash,
-        parsedEvents.length + 1,
+        parsedEvents.length + parsedOperations.length + 1,
         createdAt,
       );
 
@@ -601,6 +743,24 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
           event.visibility,
           JSON.stringify(event.payload),
           event.createdAt,
+        );
+      }
+      for (const [index, operation] of parsedOperations.entries()) {
+        const seq = parsedEvents.length + index + 1;
+        const layer = this.operationLayer(operation);
+        if (layer === null) throw new Error("Initial canvas layer is invalid");
+        this.ctx.storage.sql.exec(
+          `INSERT INTO canvas_operations (
+            seq, client_operation_id, workspace_id, layer,
+            author_id, operation_type, payload_json, created_at
+          ) VALUES (?, ?, ?, ?, 'judge-fixture', ?, ?, ?)`,
+          seq,
+          operation.clientOperationId,
+          operation.workspaceId,
+          layer,
+          operation.operation,
+          JSON.stringify(operation),
+          createdAt,
         );
       }
     });
@@ -721,6 +881,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     this.send(socket, {
       payload: {
         analyses: this.analysesByAttemptId(attemptIds),
+        achievements: this.achievementsAfter(lastSeenSeq),
         attempts: this.attemptsById(attemptIds),
         canvasOperations: this.canvasOperationsAfter(lastSeenSeq),
         fromSeq: lastSeenSeq,
@@ -828,7 +989,8 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     if (duplicateRow !== undefined) {
       const attempt = this.attemptsById([duplicateRow.id])[0];
       const run = this.simulationRunForAttempt(duplicateRow.id);
-      if (attempt !== undefined && run !== null) {
+      const achievement = this.achievementForAttempt(duplicateRow.id);
+      if (attempt !== undefined && run !== null && achievement !== null) {
         this.ack(
           socket,
           message.requestId,
@@ -837,7 +999,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
           true,
         );
         this.send(socket, {
-          payload: { attempt, run },
+          payload: { achievement, attempt, run },
           type: "simulation.launch",
           v: 1,
         });
@@ -859,6 +1021,13 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     const createdAt = new Date().toISOString();
     const randomSeed = crypto.randomUUID();
     let roomSeq = 0;
+    const achievement = bridgeAchievement({
+      attemptId,
+      createdAt,
+      hadPriorIncorrectAttempt: this.hasPriorIncorrectAttempt(),
+      outcome,
+      roomSeq: this.nextSequence(),
+    });
 
     if (!this.acquireAttemptProcessingLock(attemptId)) {
       this.rejectCommand(socket, message.requestId, "attempt_in_progress");
@@ -892,6 +1061,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
           randomSeed,
           createdAt,
         );
+        this.insertAchievement(achievement);
         this.ctx.storage.sql.exec(
           "UPDATE room_meta SET next_seq = ? WHERE singleton = 1",
           roomSeq + 1,
@@ -929,7 +1099,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       false,
     );
     this.broadcast({
-      payload: { attempt, run },
+      payload: { achievement, attempt, run },
       type: "simulation.launch",
       v: 1,
     });
@@ -1240,6 +1410,81 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
     });
   }
 
+  private insertAchievement(achievement: AchievementAward): void {
+    this.ctx.storage.sql.exec(
+      `INSERT INTO achievement_awards (
+        id, attempt_id, room_seq, achievement_key, category,
+        title, description, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      achievement.id,
+      achievement.attemptId,
+      achievement.roomSeq,
+      achievement.key,
+      achievement.category,
+      achievement.title,
+      achievement.description,
+      achievement.createdAt,
+    );
+  }
+
+  private achievementForAttempt(attemptId: string): AchievementAward | null {
+    const row = this.ctx.storage.sql
+      .exec<AchievementRow>(
+        `SELECT id, attempt_id, room_seq, achievement_key, category,
+                title, description, created_at
+         FROM achievement_awards WHERE attempt_id = ?`,
+        attemptId,
+      )
+      .toArray()[0];
+    return row === undefined ? null : this.achievementRecord(row);
+  }
+
+  private achievements(): AchievementAward[] {
+    return this.achievementRows(
+      `SELECT id, attempt_id, room_seq, achievement_key, category,
+              title, description, created_at
+       FROM achievement_awards ORDER BY room_seq`,
+    );
+  }
+
+  private achievementsAfter(seq: number): AchievementAward[] {
+    return this.achievementRows(
+      `SELECT id, attempt_id, room_seq, achievement_key, category,
+              title, description, created_at
+       FROM achievement_awards WHERE room_seq > ? ORDER BY room_seq`,
+      seq,
+    );
+  }
+
+  private achievementRows(
+    query: string,
+    ...bindings: unknown[]
+  ): AchievementAward[] {
+    return this.ctx.storage.sql
+      .exec<AchievementRow>(query, ...bindings)
+      .toArray()
+      .map((row) => this.achievementRecord(row));
+  }
+
+  private achievementRecord(row: AchievementRow): AchievementAward {
+    return AchievementAwardSchema.parse({
+      attemptId: row.attempt_id,
+      category: row.category,
+      createdAt: row.created_at,
+      description: row.description,
+      id: row.id,
+      key: row.achievement_key,
+      roomSeq: row.room_seq,
+      title: row.title,
+    });
+  }
+
+  private hasPriorIncorrectAttempt(): boolean {
+    return this.simulationRuns().some(
+      (run) => !run.outcome.isMathematicallyCorrect,
+    );
+  }
+
   private simulationRuns(): SimulationRun[] {
     return this.simulationRunRows(
       `SELECT id, attempt_id, room_seq, template_id, template_version,
@@ -1314,6 +1559,7 @@ export class RoomDurableObject extends DurableObject<WorkerEnv> {
       );
 
     const base = {
+      achievements: this.achievements(),
       analyses: this.analyses(),
       attempts: this.attempts(),
       canvasOperations: this.canvasOperations(),

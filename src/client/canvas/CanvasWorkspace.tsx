@@ -22,6 +22,7 @@ type CanvasWorkspaceProps = {
   activeLayer: DrawableCanvasLayer;
   connected: boolean;
   onOperation: (operation: CanvasOperation) => void;
+  preparedSample: boolean;
   records: CanvasOperationRecord[];
   roomSeq: number;
 };
@@ -32,6 +33,7 @@ export function CanvasWorkspace({
   activeLayer,
   connected,
   onOperation,
+  preparedSample,
   records,
   roomSeq,
 }: CanvasWorkspaceProps) {
@@ -293,6 +295,8 @@ export function CanvasWorkspace({
         <p id="canvas-instructions">
           Draw with a mouse, finger, or stylus. Non-drawing actions are
           available as buttons above the canvas.
+          {preparedSample &&
+            " This prepared judge work is ordinary editable student ink."}
         </p>
         <span aria-live="polite">
           {connected

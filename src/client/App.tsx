@@ -1,4 +1,5 @@
 import {
+  Fragment,
   lazy,
   Suspense,
   useCallback,
@@ -11,10 +12,13 @@ import { CanvasWorkspace } from "./canvas/CanvasWorkspace";
 import { rasterizeStudentAttempt } from "./canvas/student-raster";
 import { AnalysisCard } from "./feed/AnalysisCard";
 import { AnalysisSubmitPanel } from "./feed/AnalysisSubmitPanel";
+import { AchievementCard } from "./feed/AchievementCard";
 import { LearningFeed } from "./feed/LearningFeed";
+import { PreparedCorrectionPanel } from "./feed/PreparedCorrectionPanel";
 import {
   fetchRoomBootstrap,
   readRoomLocation,
+  resetRoom,
   roomSocketUrl,
   submitAnalysisAttempt,
 } from "./room/room-client";
@@ -22,6 +26,7 @@ import { ManualBridgePanel } from "./simulation/ManualBridgePanel";
 import type { CanvasOperation } from "../shared/canvas";
 import type { BridgeSimulationInputs } from "../shared/domain/bridge";
 import type { AnalysisRecord } from "../shared/analysis-types";
+import { preparedBridgeCorrection } from "../shared/judge-handwriting";
 import type {
   RoomBootstrap,
   SocketAuthenticatedMessage,
@@ -64,6 +69,7 @@ export function App() {
   const [pendingCount, setPendingCount] = useState(0);
   const [submittingAnalysis, setSubmittingAnalysis] = useState(false);
   const [readyAiRuns, setReadyAiRuns] = useState<Set<string>>(() => new Set());
+  const [resetting, setResetting] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingCommands = useRef(new Map<string, SocketAuthenticatedMessage>());
   const lastSeenSeq = useRef(0);
@@ -118,7 +124,13 @@ export function App() {
       }
       if (message.type === "room.snapshot") {
         lastSeenSeq.current = message.payload.roomSeq;
-        setRoom(message.payload);
+        setRoom((current) => ({
+          ...message.payload,
+          ...(message.payload.studentCapability === undefined &&
+          current?.studentCapability !== undefined
+            ? { studentCapability: current.studentCapability }
+            : {}),
+        }));
         return;
       }
       if (message.type === "room.delta") {
@@ -134,6 +146,10 @@ export function App() {
                 analyses: mergeAnalyses(
                   current.analyses,
                   message.payload.analyses,
+                ),
+                achievements: mergeById(
+                  current.achievements,
+                  message.payload.achievements,
                 ),
                 attempts: mergeById(current.attempts, message.payload.attempts),
                 canvasOperations: [
@@ -192,6 +208,9 @@ export function App() {
             ? current
             : {
                 ...current,
+                achievements: mergeById(current.achievements, [
+                  message.payload.achievement,
+                ]),
                 attempts: mergeById(current.attempts, [
                   message.payload.attempt,
                 ]),
@@ -237,6 +256,9 @@ export function App() {
                 ...current,
                 analyses: mergeAnalyses(current.analyses, [
                   message.payload.analysis,
+                ]),
+                achievements: mergeById(current.achievements, [
+                  message.payload.achievement,
                 ]),
                 attempts: mergeById(current.attempts, [
                   message.payload.attempt,
@@ -415,6 +437,9 @@ export function App() {
       record.layer === "student" ? Math.max(latest, record.seq) : latest,
     0,
   );
+  const latestIncorrectRunId = room.simulationRuns
+    .filter((run) => !run.outcome.isMathematicallyCorrect)
+    .at(-1)?.id;
 
   async function copyStudentLink(): Promise<void> {
     if (studentLink === null) return;
@@ -453,6 +478,21 @@ export function App() {
       requestId: crypto.randomUUID(),
       type: "attempt.manual-capture",
       v: 1,
+    });
+  }
+
+  function applyPreparedCorrection(): void {
+    const prefix = "judge-correction-" + crypto.randomUUID();
+    for (const operation of preparedBridgeCorrection(prefix)) {
+      sendCanvasOperation(operation);
+    }
+    window.requestAnimationFrame(() => {
+      document.getElementById("analysis-submit-title")?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "center",
+      });
     });
   }
 
@@ -498,6 +538,29 @@ export function App() {
     }
   }
 
+  async function resetCurrentTask(): Promise<void> {
+    if (roomLocation === null || resetting) return;
+    setResetting(true);
+    setCommandError("");
+    try {
+      const reset = await resetRoom(roomLocation);
+      setRoom(reset);
+      setReadyAiRuns(new Set());
+      setSubmittingAnalysis(false);
+      pendingCommands.current.clear();
+      setPendingCount(0);
+      lastSeenSeq.current = reset.roomSeq;
+    } catch (reason) {
+      setCommandError(
+        reason instanceof Error && reason.message === "attempt_in_progress"
+          ? "Wait for the current analysis to finish before resetting."
+          : "The task could not be reset. Your current room is unchanged.",
+      );
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
     <main className="room-page">
       <header className="room-header">
@@ -516,14 +579,36 @@ export function App() {
                 : "Connecting to live room"}
           </span>
           {isTeacher && (
-            <button
-              aria-pressed={previewStudent}
-              className="secondary-button"
-              onClick={() => setPreviewStudent((value) => !value)}
-              type="button"
-            >
-              {previewStudent ? "Return to teacher view" : "Preview as student"}
-            </button>
+            <>
+              <button
+                aria-pressed={previewStudent}
+                className="secondary-button"
+                onClick={() => setPreviewStudent((value) => !value)}
+                type="button"
+              >
+                {previewStudent
+                  ? "Return to teacher view"
+                  : "Preview as student"}
+              </button>
+              <button
+                className="secondary-button"
+                disabled={
+                  resetting ||
+                  pendingCount > 0 ||
+                  room.attempts.some(
+                    (attempt) =>
+                      "mode" in attempt &&
+                      attempt.mode === "ai" &&
+                      attempt.status !== "complete" &&
+                      attempt.status !== "failed",
+                  )
+                }
+                onClick={() => void resetCurrentTask()}
+                type="button"
+              >
+                {resetting ? "Resetting…" : "Reset current task"}
+              </button>
+            </>
           )}
         </div>
       </header>
@@ -573,6 +658,7 @@ export function App() {
           activeLayer={activeLayer}
           connected={connection === "connected"}
           onOperation={sendCanvasOperation}
+          preparedSample={room.fixtureId === "judge-v1"}
           records={room.canvasOperations}
           roomSeq={room.roomSeq}
         />
@@ -645,20 +731,48 @@ export function App() {
           ) {
             return null;
           }
+          const achievement = room.achievements.find(
+            (award) => award.attemptId === run.attemptId,
+          );
           return (
-            <Suspense
-              fallback={
-                <section className="simulation-card" role="status">
-                  Preparing the physics scene…
-                </section>
-              }
-              key={run.id}
-            >
-              <BridgeSimulation
-                run={run}
-                sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
-              />
-            </Suspense>
+            <Fragment key={run.id}>
+              <Suspense
+                fallback={
+                  <section className="simulation-card" role="status">
+                    Preparing the physics scene…
+                  </section>
+                }
+              >
+                <BridgeSimulation
+                  run={run}
+                  sourceCanvasSeq={attempt?.sourceCanvasSeq ?? 0}
+                />
+              </Suspense>
+              {achievement !== undefined && (
+                <AchievementCard award={achievement} />
+              )}
+              {studentPerspective &&
+                room.fixtureId === "judge-v1" &&
+                run.id === latestIncorrectRunId &&
+                !room.simulationRuns.some(
+                  (candidate) => candidate.outcome.isMathematicallyCorrect,
+                ) && (
+                  <PreparedCorrectionPanel
+                    disabled={
+                      connection !== "connected" ||
+                      pendingCount > 0 ||
+                      room.attempts.some(
+                        (candidate) =>
+                          "mode" in candidate &&
+                          candidate.mode === "ai" &&
+                          candidate.status !== "complete" &&
+                          candidate.status !== "failed",
+                      )
+                    }
+                    onApply={applyPreparedCorrection}
+                  />
+                )}
+            </Fragment>
           );
         })}
       </div>

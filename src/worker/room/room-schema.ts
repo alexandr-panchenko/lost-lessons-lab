@@ -98,10 +98,27 @@ export const CREATE_ROOM_SCHEMA_SQL = `
     completed_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS achievement_awards (
+    id TEXT PRIMARY KEY,
+    attempt_id TEXT NOT NULL UNIQUE,
+    room_seq INTEGER NOT NULL,
+    achievement_key TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('progress', 'disaster')),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS rate_limit_buckets (
     scope TEXT NOT NULL,
     bucket_start TEXT NOT NULL,
     count INTEGER NOT NULL,
     PRIMARY KEY (scope, bucket_start)
+  );
+
+  CREATE TABLE IF NOT EXISTS task_resets (
+    idempotency_key TEXT PRIMARY KEY,
+    room_seq INTEGER NOT NULL,
+    created_at TEXT NOT NULL
   );
 `;

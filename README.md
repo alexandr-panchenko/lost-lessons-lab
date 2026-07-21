@@ -16,7 +16,7 @@ Implementation status is tracked in [`STATUS.md`](STATUS.md).
 2. Switch to **Student view** and submit the prepared handwritten fraction mistake.
 3. Watch GPT-5.6 show how it read the work and extract `4.08 m`.
 4. Let the bridge simulation run: the bridge is too short and the vehicle falls safely into a comic rescue area.
-5. Correct `3/4 = 0.34` to `3/4 = 0.75`, submit again, and watch the successful crossing.
+5. Apply the prepared editable correction to `3/4 = 0.75`, submit again, and watch the successful crossing.
 6. Replay either run or reload the page to verify that the room feed persists.
 
 Expected visible result:
@@ -26,7 +26,7 @@ Expected visible result:
 - the corrected value produces a safe crossing and a progress achievement;
 - a teacher can annotate the learner's canvas in realtime without those marks entering the learner's submitted answer.
 
-The M4 slice adds server-only GPT-5.6 handwriting interpretation to the complete deterministic M3 path. Student-only PNGs are stored privately, model output is parsed through strict Structured Outputs and template-specific validation, and failures return immediately to an explicitly labeled manual form. The browser never receives an OpenAI key and the model verdict never decides arithmetic truth.
+The complete bridge slice starts `/judge` with editable student-layer handwriting, interprets both the wrong and corrected work through server-only GPT-5.6, and turns strictly validated values into persisted physics runs. Separate disaster and progress awards, replay, reload, and teacher-only reset complete the loop. Student-only PNGs remain private, failures return to an explicitly labeled manual form, the browser never receives an OpenAI key, and the model verdict never decides arithmetic truth.
 
 See [`JUDGING.md`](JUDGING.md) for the final concise instructions.
 

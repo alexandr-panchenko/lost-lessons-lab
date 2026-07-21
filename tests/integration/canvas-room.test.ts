@@ -12,8 +12,8 @@ type CreatedRoom = {
   teacherToken: string;
 };
 
-async function createRoom(): Promise<CreatedRoom> {
-  const response = await exports.default.fetch("https://example.test/judge", {
+async function createRoom(path = "/judge"): Promise<CreatedRoom> {
+  const response = await exports.default.fetch(`https://example.test${path}`, {
     redirect: "manual",
   });
   const location = new URL(
@@ -116,7 +116,7 @@ function addStroke(
 
 describe("realtime canvas room", () => {
   it("orders, broadcasts, deduplicates, filters roles, and resumes operations", async () => {
-    const room = await createRoom();
+    const room = await createRoom("/");
     const teacher = await connect(
       room.roomId,
       room.teacherToken,
@@ -227,6 +227,11 @@ describe("realtime canvas room", () => {
     expect(firstLaunch.payload.run.outcome.resultClass).toBe(
       "bridge_far_too_short",
     );
+    expect(firstLaunch.payload.achievement).toMatchObject({
+      category: "disaster",
+      key: "worlds-shortest-bridge",
+      title: "The World's Shortest Bridge",
+    });
 
     student.socket.send(
       JSON.stringify(
@@ -266,6 +271,11 @@ describe("realtime canvas room", () => {
       3,
     );
     expect(secondLaunch.payload.run.outcome.resultClass).toBe("bridge_correct");
+    expect(secondLaunch.payload.achievement).toMatchObject({
+      category: "progress",
+      key: "fixed-it",
+      title: "Fixed It",
+    });
 
     const persisted = RoomBootstrapSchema.parse(
       await (
@@ -276,6 +286,7 @@ describe("realtime canvas room", () => {
       ).json(),
     );
     expect(persisted.attempts).toHaveLength(2);
+    expect(persisted.achievements).toHaveLength(2);
     expect(persisted.simulationRuns).toHaveLength(2);
     expect(persisted.attempts[0]?.sourceCanvasSeq).toBe(source.payload.seq);
     expect(persisted.simulationRuns[0]?.inputs.deployedLengthMeters).toBe(4.08);

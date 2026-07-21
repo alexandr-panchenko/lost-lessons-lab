@@ -192,6 +192,10 @@ describe("analysis room lifecycle", () => {
       usedRepair: false,
     });
     expect(completed).toMatchObject({
+      achievement: {
+        category: "disaster",
+        key: "worlds-shortest-bridge",
+      },
       analysis: {
         result: { scenarioInputs: { deployedLengthMeters: 4.08 } },
       },
@@ -223,6 +227,7 @@ describe("analysis room lifecycle", () => {
     );
     expect(reloaded.attempts).toContainEqual(completed.attempt);
     expect(reloaded.analyses).toContainEqual(completed.analysis);
+    expect(reloaded.achievements).toContainEqual(completed.achievement);
     expect(reloaded.simulationRuns).toContainEqual(completed.run);
   });
 });

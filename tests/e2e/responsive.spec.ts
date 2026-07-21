@@ -31,7 +31,7 @@ test("reduced motion reaches the same text result without animation", async ({
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/judge");
   await page.getByRole("button", { name: "Preview as student" }).click();
-  await page.getByRole("button", { name: "Run my solution" }).click();
+  await page.getByRole("button", { name: "Run manual value" }).click();
   await expect(page.getByText("Result confirmed")).toBeVisible();
   await expect(page.getByText(/4\.08 meter bridge ends before/u)).toBeVisible();
 });

@@ -35,12 +35,12 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
     });
   });
 
-  await page.goto("/judge");
+  await page.goto("/");
   await drawStroke(page, "Teacher annotation", 0.25);
   await expect(page.getByText("1 shared operations saved")).toBeVisible();
   await page.getByRole("button", { name: "Preview as student" }).click();
 
-  await page.getByRole("button", { name: "Interpret my handwriting" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(
     page.getByText(
       "Write a solution on the canvas before asking AI to read it.",
@@ -50,7 +50,7 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
 
   await drawStroke(page, "Student math solution", 0.55);
   await expect(page.getByText("2 shared operations saved")).toBeVisible();
-  await page.getByRole("button", { name: "Interpret my handwriting" }).click();
+  await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(
     page.getByText(
       "AI interpretation is disabled right now. Use the manual bridge controls below.",
@@ -71,6 +71,6 @@ test("excludes teacher ink and exposes an honest manual fallback", async ({
     ),
   ).toBe(true);
   await expect(
-    page.getByRole("button", { name: "Run my solution" }),
+    page.getByRole("button", { name: "Run manual value" }),
   ).toBeEnabled();
 });

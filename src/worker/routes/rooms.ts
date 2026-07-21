@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   bridgeRoomFixture,
   JUDGE_FIXTURE_ID,
+  judgePreparedWrongOperations,
 } from "../../../fixtures/judge-v1/fixture";
 import type { RoomFeedEvent } from "../../shared/protocol";
 import type { WorkerEnv } from "../env";
@@ -115,6 +116,7 @@ async function createRoom(
       teacherCapabilityHash,
     },
     fixtureEvents(createdAt, judge),
+    judge ? judgePreparedWrongOperations : [],
   );
 
   return new Response(null, {

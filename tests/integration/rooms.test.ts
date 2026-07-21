@@ -45,6 +45,30 @@ describe("persistent guided rooms", () => {
     expect(first.token).not.toBe(second.token);
   });
 
+  it("prepares ordinary editable student ink only in judge rooms", async () => {
+    const judgeCreated = await createRoom("/judge");
+    const judge = RoomBootstrapSchema.parse(
+      await (await bootstrap(judgeCreated.roomId, judgeCreated.token)).json(),
+    );
+    const ordinaryCreated = await createRoom("/");
+    const ordinary = RoomBootstrapSchema.parse(
+      await (
+        await bootstrap(ordinaryCreated.roomId, ordinaryCreated.token)
+      ).json(),
+    );
+
+    expect(judge.canvasOperations.length).toBeGreaterThan(10);
+    expect(
+      judge.canvasOperations.every(
+        (record) =>
+          record.layer === "student" &&
+          record.operation.operation === "stroke.add" &&
+          record.authorId === "judge-fixture",
+      ),
+    ).toBe(true);
+    expect(ordinary.canvasOperations).toEqual([]);
+  });
+
   it("filters private teacher setup from the learner", async () => {
     const created = await createRoom("/");
     const teacherResponse = await bootstrap(created.roomId, created.token);

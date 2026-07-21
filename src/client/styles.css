@@ -135,6 +135,8 @@ input {
 .canvas-card,
 .analysis-card,
 .analysis-submit-card,
+.achievement-card,
+.correction-card,
 .manual-card,
 .simulation-card,
 .teacher-note-card {
@@ -322,6 +324,8 @@ blockquote {
 .canvas-card,
 .analysis-card,
 .analysis-submit-card,
+.achievement-card,
+.correction-card,
 .manual-card,
 .simulation-card,
 .teacher-note-card {
@@ -340,6 +344,65 @@ blockquote {
   gap: 1.25rem;
   border-color: #6c4595;
   box-shadow: 0.35rem 0.35rem 0 #c7acd9;
+}
+
+.correction-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  border-color: #a54822;
+  box-shadow: 0.35rem 0.35rem 0 #f2b28d;
+}
+
+.correction-card h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+}
+
+.correction-card p {
+  line-height: 1.5;
+}
+
+.achievement-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+}
+
+.achievement-card--disaster {
+  border-color: #a54822;
+  box-shadow: 0.35rem 0.35rem 0 #f2b28d;
+}
+
+.achievement-card--progress {
+  border-color: #26724a;
+  box-shadow: 0.35rem 0.35rem 0 #9fd5b8;
+}
+
+.achievement-card__icon {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  font-size: 1.6rem;
+}
+
+.achievement-card h2,
+.achievement-card p {
+  margin: 0;
+}
+
+.achievement-card h2 {
+  font-size: clamp(1.4rem, 4vw, 2rem);
+}
+
+.achievement-card p:last-child {
+  margin-top: 0.45rem;
+  line-height: 1.5;
 }
 
 .analysis-submit-card h2,
@@ -750,7 +813,8 @@ blockquote {
     grid-template-columns: 1fr;
   }
 
-  .analysis-submit-card {
+  .analysis-submit-card,
+  .correction-card {
     grid-template-columns: 1fr;
   }
 

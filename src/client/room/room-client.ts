@@ -81,3 +81,23 @@ export async function submitAnalysisAttempt(input: {
     .parse(body);
   return envelope;
 }
+
+export async function resetRoom(room: RoomLocation): Promise<RoomBootstrap> {
+  const response = await fetch(`/api/rooms/${room.roomId}/reset`, {
+    body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+    headers: {
+      Authorization: `Bearer ${room.token}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const body = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error =
+      typeof body === "object" && body !== null && "error" in body
+        ? String(body.error)
+        : "reset_failed";
+    throw new Error(error);
+  }
+  return z.object({ room: RoomBootstrapSchema }).strict().parse(body).room;
+}

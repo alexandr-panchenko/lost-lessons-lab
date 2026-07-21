@@ -28,7 +28,7 @@ export function AnalysisSubmitPanel({
         onClick={onSubmit}
         type="button"
       >
-        {submitting ? "Preparing student work…" : "Interpret my handwriting"}
+        {submitting ? "Preparing student work…" : "Run my solution"}
       </button>
       {pendingOperations > 0 && (
         <p className="inline-status" role="status">

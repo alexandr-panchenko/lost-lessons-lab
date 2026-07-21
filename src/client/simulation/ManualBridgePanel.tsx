@@ -84,7 +84,7 @@ export function ManualBridgePanel({
           disabled={disabled || pendingOperations > 0}
           type="submit"
         >
-          Run my solution
+          Run manual value
         </button>
         {pendingOperations > 0 && (
           <p className="inline-status" role="status">
