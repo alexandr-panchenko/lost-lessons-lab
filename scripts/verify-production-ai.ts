@@ -35,6 +35,11 @@ const teacher = await bootstrap(teacherToken);
 if (teacher.studentCapability === undefined)
   throw new Error("Production teacher bootstrap omitted learner capability");
 const studentToken = teacher.studentCapability;
+const sourceCanvasSeq = teacher.canvasOperations.reduce(
+  (latest, record) =>
+    record.layer === "student" ? Math.max(latest, record.seq) : latest,
+  0,
+);
 const accepted = await fetch(
   new URL(`/api/rooms/${roomId}/attempts`, productionUrl),
   {
@@ -44,7 +49,7 @@ const accepted = await fetch(
       idempotencyKey: crypto.randomUUID(),
       mediaBase64: image.toString("base64"),
       previewAsStudent: false,
-      sourceCanvasSeq: 0,
+      sourceCanvasSeq,
     }),
     headers: {
       Authorization: `Bearer ${studentToken}`,

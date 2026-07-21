@@ -22,6 +22,9 @@ const RoomRedirectSchema = z.object({
 });
 
 const BootstrapSchema = z.object({
+  achievements: z.array(z.unknown()),
+  attempts: z.array(z.unknown()),
+  canvasOperations: z.array(z.unknown()),
   events: z.array(
     z.object({
       type: z.string(),
@@ -30,6 +33,7 @@ const BootstrapSchema = z.object({
   ),
   role: z.enum(["teacher", "student"]),
   roomId: z.string(),
+  simulationRuns: z.array(z.unknown()),
   studentCapability: z.string().min(32).optional(),
 });
 
@@ -204,6 +208,10 @@ socket.send(
 const launch = z
   .object({
     payload: z.object({
+      achievement: z.object({
+        category: z.literal("disaster"),
+        key: z.literal("worlds-shortest-bridge"),
+      }),
       run: z.object({
         outcome: z.object({
           resultClass: z.literal("bridge_far_too_short"),
@@ -219,19 +227,44 @@ if (launch.payload.run.outcome.resultClass !== "bridge_far_too_short") {
 }
 socket.close();
 
-const persistedStudent = BootstrapSchema.extend({
-  attempts: z.array(z.unknown()),
-  canvasOperations: z.array(z.unknown()),
-  simulationRuns: z.array(z.unknown()),
-}).parse(
+const persistedStudent = BootstrapSchema.parse(
   await (await bootstrap(firstRoom.roomId, teacher.studentCapability)).json(),
 );
 if (
-  persistedStudent.canvasOperations.length !== 1 ||
+  persistedStudent.canvasOperations.length !==
+    teacher.canvasOperations.length + 1 ||
   persistedStudent.attempts.length !== 1 ||
-  persistedStudent.simulationRuns.length !== 1
+  persistedStudent.simulationRuns.length !== 1 ||
+  persistedStudent.achievements.length !== 1
 ) {
   throw new Error("Production M3 room state did not persist.");
+}
+
+const resetResponse = await fetch(
+  new URL(`/api/rooms/${firstRoom.roomId}/reset`, productionOrigin),
+  {
+    body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+    headers: {
+      Authorization: `Bearer ${firstRoom.token}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  },
+);
+if (!resetResponse.ok) {
+  throw new Error(`Production task reset failed with ${resetResponse.status}`);
+}
+const resetRoom = z
+  .object({ room: BootstrapSchema })
+  .parse(await resetResponse.json()).room;
+if (
+  resetRoom.roomId !== firstRoom.roomId ||
+  resetRoom.canvasOperations.length !== teacher.canvasOperations.length ||
+  resetRoom.attempts.length !== 0 ||
+  resetRoom.simulationRuns.length !== 0 ||
+  resetRoom.achievements.length !== 0
+) {
+  throw new Error("Production task reset did not restore the judge fixture.");
 }
 
 const roomDocument = await fetch(
@@ -242,5 +275,5 @@ if (!roomDocument.ok || !roomDocument.headers.get("content-security-policy")) {
 }
 
 console.log(
-  `Production smoke passed for ${health.service}: isolated rooms, role filtering, realtime canvas persistence, deterministic manual bridge capture, invalid-capability rejection, and protected room headers.`,
+  `Production smoke passed for ${health.service}: isolated prepared rooms, role filtering, realtime canvas persistence, deterministic bridge and disaster award, teacher reset, invalid-capability rejection, and protected room headers.`,
 );
