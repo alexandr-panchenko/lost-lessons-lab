@@ -8,7 +8,7 @@ States: `not started`, `in progress`, `blocked`, `done`, `cut`.
 |---|---|---|---|---|---|
 | Design packet and scope freeze | done | Required files, links, UTF-8, code fences, license, and frozen-scope consistency reviewed on 2026-07-21 | None | Preserve frozen scope during implementation | `07d27b5` |
 | M1 — Repository and reproducible environment | done | Frozen install plus format, lint, typecheck, 2 unit, 2 Worker/DO integration, build, 2 Chromium E2E, diff, history, tracked-file, and final-bundle secret checks passed on 2026-07-21 | No product room behavior by design until M2 | Begin deployable guided room shell | `7c5b502` |
-| M2 — Deployable room shell | blocked | On 2026-07-21, `bun run validate`, production smoke, and 3 clean-context production Chromium tests passed at the live URL | The standalone GitHub CLI token is invalid, so required Actions secrets and the `PRODUCTION_URL` repository variable cannot be configured or verified | Re-authenticate `gh`, configure scoped Actions deployment credentials, verify CI/deploy, then mark M2 done | `0c39b42` |
+| M2 — Deployable room shell | in progress | On 2026-07-21, `bun run validate`, production smoke, and 3 clean-context production Chromium tests passed at the live URL | The first CI run lacked a CI-only room pepper; fix pending verification | Verify the corrected CI and gated production deploy, then mark M2 done | `0c39b42` |
 | M3 — Realtime canvas and deterministic bridge | not started | — | No application code | Implement room state, canvas operation log, and manual bridge simulation | — |
 | M4 — GPT-5.6 handwriting integration | not started | — | OpenAI secret required | Add Responses API, Structured Outputs, validation, and fallback | — |
 | M5 — Complete hero and judge flow | not started | — | Depends on M3–M4 | Complete wrong/correct retry, achievements, replay, and `/judge` | — |
@@ -22,7 +22,7 @@ States: `not started`, `in progress`, `blocked`, `done`, `cut`.
 
 ## Current blockers
 
-M2 is externally blocked only on GitHub Actions configuration. Local `.dev.vars`, Cloudflare OAuth, and Git remote push authentication work, and the production Worker is live. The standalone GitHub CLI token is invalid, so Codex cannot configure or verify the required `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `PRODUCTION_URL` Actions settings without re-authentication. Secret values were not printed.
+No active credential blocker remains. GitHub CLI authentication, scoped Actions deployment secrets, the `PRODUCTION_URL` repository variable, Cloudflare OAuth, Git push authentication, and local `.dev.vars` are available. Secret values were not printed.
 
 Credentials still reserved for later gates:
 

@@ -23,6 +23,8 @@ jobs:
         run: bunx playwright install --with-deps chromium
       - name: Validate
         run: bun run validate
+        env:
+          ROOM_TOKEN_PEPPER: ci-only-room-token-pepper-not-for-production
       - name: Scan tracked source for common secret patterns
         shell: bash
         run: |
