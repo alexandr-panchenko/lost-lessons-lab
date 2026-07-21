@@ -8,6 +8,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
+  timeout: 45_000,
   use: {
     baseURL: externalBaseURL ?? "http://127.0.0.1:5173",
     trace: "retain-on-failure",

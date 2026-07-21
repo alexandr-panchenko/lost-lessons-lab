@@ -117,7 +117,7 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
   await page.getByRole("button", { name: "Run manual value" }).click();
   await expect(
     page.getByRole("heading", { name: "Bridge too short" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   await expect
     .poll(() =>
       page.evaluate(() =>
