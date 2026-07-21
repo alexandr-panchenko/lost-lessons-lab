@@ -100,6 +100,9 @@ export function BridgeSimulation({
     let steps = 0;
     let terminal: BridgeWorldStatus = "running";
     let priorPhase: BridgeVisualPhase = "deploying";
+    const wrongSceneRenderScale = run.outcome.isMathematicallyCorrect
+      ? 1
+      : 0.78;
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -816,14 +819,19 @@ export function BridgeSimulation({
         if (shouldForceRendererFailure(window))
           throw new Error("Injected renderer failure");
         const stageHeight = host.clientWidth < 700 ? 500 : 620;
+        const renderWidth = Math.max(
+          320,
+          Math.round(host.clientWidth * wrongSceneRenderScale),
+        );
+        const renderHeight = Math.round(stageHeight * wrongSceneRenderScale);
         await app.init({
-          antialias: quality.antialias,
+          antialias: run.outcome.isMathematicallyCorrect && quality.antialias,
           autoStart: false,
           backgroundColor: 0xaedee8,
-          height: stageHeight,
+          height: renderHeight,
           preference: "webgl",
           resolution: quality.resolution,
-          width: Math.max(320, host.clientWidth),
+          width: renderWidth,
         });
         initialized = true;
         if (cancelled) {
@@ -836,7 +844,10 @@ export function BridgeSimulation({
         app.canvas.className = "simulation-canvas simulation-canvas--bridge";
         resizeObserver = new ResizeObserver(() => {
           const nextHeight = host.clientWidth < 700 ? 500 : 620;
-          app.renderer.resize(Math.max(320, host.clientWidth), nextHeight);
+          app.renderer.resize(
+            Math.max(320, Math.round(host.clientWidth * wrongSceneRenderScale)),
+            Math.round(nextHeight * wrongSceneRenderScale),
+          );
           farScene.cacheAsTexture(false);
           terrainScene.cacheAsTexture(false);
           staticLayersReady = false;
