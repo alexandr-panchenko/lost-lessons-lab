@@ -39,9 +39,17 @@ const BootstrapSchema = z.object({
 });
 
 async function createRoom(path = "/judge") {
-  const response = await fetch(new URL(path, productionOrigin), {
-    redirect: "manual",
-  });
+  let response: Response | undefined;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    response = await fetch(new URL(path, productionOrigin), {
+      redirect: "manual",
+    });
+    if (response.status === 302) break;
+    if (response.status !== 200 || attempt === 9) break;
+    await response.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  if (response === undefined) throw new Error("Room creation did not run.");
   if (response.status !== 302) {
     throw new Error(`Judge room creation failed with ${response.status}`);
   }
