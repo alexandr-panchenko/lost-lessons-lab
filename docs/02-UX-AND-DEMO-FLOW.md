@@ -38,6 +38,8 @@ Every visit creates a new real room from versioned fixture `judge-v1` and redire
 
 This is not a mock application. The route uses the same room state, AI endpoint, validation, simulation, persistence, and controls as ordinary rooms. The fixture only provides reliable starting content and sample handwriting.
 
+The judge entry opens directly in the real **Student lesson** capability with an empty canvas. A compact persistent role control can return to **Teacher setup** in the same tab without changing rooms or losing state.
+
 ### `/r/:roomId`
 
 The canonical room route. A capability token in the URL fragment identifies teacher or learner access without placing the token in the HTTP request URL.
@@ -59,7 +61,7 @@ The room creates two links exactly once:
 
 There is no registration, link rotation, revocation, recovery, or resending workflow in the Build Week version.
 
-The teacher view exposes a dominant **Try the lesson as a student** action plus a persistent **Teacher / Student** view control. The action changes the same tab to the existing room's real student capability; it does not create a second user, duplicate state, open another tab, or require copying a link. A separately opened student link never receives the teacher capability or the return control.
+The persistent **Student lesson / Teacher setup** view control changes the same tab between the room's real capabilities; it does not create a second user, duplicate state, open another tab, or require copying a link. A separately opened student link never receives the teacher capability or the return control.
 
 ## One continuous learning feed
 
@@ -98,7 +100,7 @@ Archived attempt canvases can render as saved images until the user opens their 
 3. The teacher clicks a skill or describes a gap in free text.
 4. The agent maps the request to a supported template or clearly offers alternatives.
 5. A task appears in the room.
-6. For the judge path, the teacher selects **Try the lesson as a student** and the same tab enters the real student capability. For real collaboration, the separate student link remains available below the feed.
+6. The judge path already begins in the real student capability. The compact control can return to teacher setup, and the separate student link remains available there for real collaboration.
 7. During learner work, the teacher sees the learner-facing feed and may add annotations or a short hint.
 8. Teacher marks remain a separate layer and never enter learner analysis.
 9. The teacher sees attempts, interpretations, simulations, and achievements.
@@ -246,7 +248,7 @@ The simulation creates `9 m` of bridge. The vehicle crosses and the recurring ch
 
 | Time | Judge action and visible evidence |
 |---:|---|
-| 0–8 s | Open `/judge`; a fresh room loads with product context, task, and sample work. |
+| 0–8 s | Open `/judge`; a fresh room loads directly into the student lesson with product context, the task, and an empty handwriting canvas. |
 | 8–15 s | Select **Student view** and press **Run my solution**. |
 | 15–30 s | See staged analysis and the validated interpretation `3/4 = 0.34`, `4.08 m`. |
 | 30–48 s | Watch the short bridge and comic safe failure. Read the causal explanation. |
