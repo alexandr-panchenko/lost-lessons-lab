@@ -22,6 +22,8 @@
     "smoke:fallback:prod": "bun run scripts/verify-production-fallback.ts",
     "smoke:accessibility:prod": "bun run scripts/verify-production-accessibility.ts",
     "smoke:r0:prod": "bun run scripts/verify-rescue-r0.ts",
+    "smoke:r2:prod": "bun run scripts/verify-rescue-r2.ts",
+    "capture:r2": "bun run scripts/capture-rescue-r2.ts",
     "capture:video:draft": "bun run scripts/capture-submission-video.ts",
     "build:video:draft": "bash scripts/build-submission-video.sh",
     "verify:media": "bun run scripts/verify-submission-media.ts",

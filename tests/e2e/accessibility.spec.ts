@@ -95,6 +95,7 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
         return {
           connect: <T>(target: T): T => target,
           frequency: {
+            exponentialRampToValueAtTime: () => undefined,
             linearRampToValueAtTime: () => undefined,
             setValueAtTime: () => undefined,
           },
@@ -145,6 +146,16 @@ test("simulation sound is opt-in, synthesized locally, and muteable", async ({
       ),
     )
     .toBeGreaterThanOrEqual(1);
+  await expect(page.getByText("Result confirmed")).toBeVisible({
+    timeout: 25_000,
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Number(Reflect.get(window, "__LOST_LESSONS_TONES__")),
+      ),
+    )
+    .toBeGreaterThanOrEqual(4);
   await page.getByRole("button", { name: "Mute sound" }).click();
   await expect(
     page.getByRole("button", { name: "Turn sound on" }),

@@ -69,7 +69,9 @@ test("a renderer failure keeps the verified transcript and retry control", async
   await expect(
     page.getByRole("button", { name: "Retry simulation" }),
   ).toBeVisible();
-  await expect(page.getByText(/4\.08 meter bridge ends before/u)).toBeVisible();
+  await expect(
+    page.getByText(/4\.08 meter articulated bridge ends before/u),
+  ).toBeVisible();
 });
 
 test("the low-detail notice stays in flow and leaves room controls usable", async ({
@@ -88,7 +90,7 @@ test("the low-detail notice stays in flow and leaves room controls usable", asyn
   await page.getByLabel("Bridge length").fill("4.08");
   await page.getByRole("button", { name: "Run manual value" }).click();
 
-  const notice = page.getByText("Low-detail rendering is active", {
+  const notice = page.getByText("Reduced decorative effects are active", {
     exact: false,
   });
   await expect(notice).toBeVisible();

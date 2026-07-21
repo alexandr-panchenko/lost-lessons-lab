@@ -27,15 +27,27 @@ for (const viewport of viewports) {
   });
 }
 
-test("reduced motion reaches the same text result without animation", async ({
+test("reduced motion preserves the complete catastrophe with fewer effects", async ({
   page,
 }) => {
+  test.setTimeout(35_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/judge");
   await page
     .getByRole("button", { name: "Try the lesson as a student" })
     .click();
   await page.getByRole("button", { name: "Run manual value" }).click();
-  await expect(page.getByText("Result confirmed")).toBeVisible();
-  await expect(page.getByText(/4\.08 meter bridge ends before/u)).toBeVisible();
+  const stage = page.locator(".simulation-stage--bridge");
+  await expect(stage).toHaveAttribute("data-simulation-events", /splash/u, {
+    timeout: 20_000,
+  });
+  await expect(page.getByText("Result confirmed")).toBeVisible({
+    timeout: 25_000,
+  });
+  await expect(
+    page.getByText(/4\.08 meter articulated bridge ends before/u),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/articulated bridge, vehicle tumble, water impact/u),
+  ).toBeVisible();
 });

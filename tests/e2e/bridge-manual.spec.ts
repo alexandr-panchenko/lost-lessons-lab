@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("manual wrong and correct values drive persisted bridge physics", async ({
   page,
 }) => {
+  test.setTimeout(120_000);
   const apiRequests: string[] = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/")) {
@@ -22,8 +23,27 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   await expect(
     page.getByRole("heading", { name: "Bridge too short" }),
   ).toBeVisible();
+  const wrongStage = page.locator(".simulation-stage--bridge").first();
+  await expect(wrongStage).toHaveAttribute(
+    "data-simulation-phase",
+    /deploying|driving/u,
+  );
+  await expect(wrongStage).toHaveAttribute(
+    "data-simulation-events",
+    /failing/u,
+    {
+      timeout: 20_000,
+    },
+  );
+  await expect(wrongStage).toHaveAttribute(
+    "data-simulation-events",
+    /splash/u,
+    {
+      timeout: 10_000,
+    },
+  );
   await expect(page.getByText("Result confirmed")).toBeVisible({
-    timeout: 15_000,
+    timeout: 25_000,
   });
   await expect(
     page.locator(".simulation-card").first().locator("canvas"),
@@ -33,15 +53,21 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
       "The visual renderer is unavailable. The verified result remains below.",
     ),
   ).toHaveCount(0);
-  await expect(page.getByText(/4\.08 meter bridge ends before/u)).toBeVisible();
+  await expect(
+    page.getByText(/4\.08 meter articulated bridge ends before/u),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "The World's Shortest Bridge" }),
   ).toBeVisible();
 
   const requestsBeforeReplay = apiRequests.length;
   await page.getByRole("button", { name: "Replay" }).click();
+  await expect(wrongStage).toHaveAttribute(
+    "data-simulation-phase",
+    /deploying|driving/u,
+  );
   await expect(page.getByText("Result confirmed")).toBeVisible({
-    timeout: 15_000,
+    timeout: 25_000,
   });
   expect(apiRequests).toHaveLength(requestsBeforeReplay);
 

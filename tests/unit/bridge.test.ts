@@ -60,11 +60,52 @@ describe("deterministic bridge domain", () => {
       const result = runBridgeWorldToResult(outcome);
       expect(result.status).toBe(expected);
       expect(result.finite).toBe(true);
-      expect(result.bodyCount).toBeLessThanOrEqual(5);
+      expect(result.bodyCount).toBeGreaterThanOrEqual(10);
+      expect(result.bodyCount).toBeLessThanOrEqual(24);
+      expect(result.jointCount).toBeGreaterThanOrEqual(10);
+      expect(result.jointCount).toBeLessThanOrEqual(36);
       expect(result.maxAbsPosition).toBeLessThan(30);
-      expect(result.steps).toBeLessThanOrEqual(720);
+      expect(result.steps).toBeLessThanOrEqual(1080);
     },
   );
+
+  it("produces the broad semantic events of the 4.08 m catastrophe", () => {
+    const result = runBridgeWorldToResult(
+      classifyBridgeInput(HERO_BRIDGE_PARAMETERS, {
+        deployedLengthMeters: 4.08,
+      }),
+    );
+    expect(result.status).toBe("recovered");
+    expect(result.steps * (1 / 60)).toBeGreaterThanOrEqual(12);
+    expect(result.steps * (1 / 60)).toBeLessThanOrEqual(20);
+    expect(result.metrics.maxBridgeJointForce).toBeGreaterThan(20);
+    expect(result.metrics.brokenBridgeJoints).toBeGreaterThanOrEqual(3);
+    expect(result.metrics.bridgeBreakStep).not.toBeNull();
+    expect(result.metrics.frontWheelExitedDeck).toBe(true);
+    expect(result.metrics.maxBridgeAbsAngle).toBeGreaterThan(0.55);
+    expect(result.metrics.maxVehicleAbsAngle).toBeGreaterThan(1.2);
+    expect(result.metrics.vehicleEnteredWater).toBe(true);
+    expect(result.metrics.waterImpactX).not.toBeNull();
+    expect(result.metrics.waterImpactStep).not.toBeNull();
+    expect(result.metrics.bridgeBreakStep!).toBeLessThan(
+      result.metrics.waterImpactStep!,
+    );
+  });
+
+  it("replays the same semantic catastrophe without exact-coordinate assertions", () => {
+    const outcome = classifyBridgeInput(HERO_BRIDGE_PARAMETERS, {
+      deployedLengthMeters: 4.08,
+    });
+    const first = runBridgeWorldToResult(outcome);
+    const replay = runBridgeWorldToResult(outcome);
+    expect(replay.status).toBe(first.status);
+    expect(replay.metrics).toMatchObject({
+      brokenBridgeJoints: first.metrics.brokenBridgeJoints,
+      frontWheelExitedDeck: true,
+      vehicleEnteredWater: true,
+    });
+    expect(replay.metrics.maxVehicleAbsAngle).toBeGreaterThan(1.2);
+  });
 
   it("tears down the bridge world explicitly", () => {
     const simulation = createBridgeWorld(
