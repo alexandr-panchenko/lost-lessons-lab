@@ -1,3 +1,5 @@
+import "pixi.js/unsafe-eval";
+
 import { Application, Graphics } from "pixi.js";
 import { useEffect, useRef, useState } from "react";
 

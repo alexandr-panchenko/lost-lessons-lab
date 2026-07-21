@@ -51,6 +51,14 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   await expect(page.getByText("Result confirmed")).toBeVisible({
     timeout: 15_000,
   });
+  await expect(
+    page.locator(".simulation-card").first().locator("canvas"),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "The visual renderer is unavailable. The verified result remains below.",
+    ),
+  ).toHaveCount(0);
   await expect(page.getByText(/4\.08 meter bridge ends before/u)).toBeVisible();
 
   const requestsBeforeReplay = apiRequests.length;
@@ -65,6 +73,9 @@ test("manual wrong and correct values drive persisted bridge physics", async ({
   await page.getByRole("button", { name: "Run my solution" }).click();
   await expect(
     page.getByRole("heading", { name: "Safe crossing" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".simulation-card").nth(1).locator("canvas"),
   ).toBeVisible();
   await expect(page.getByText(/9 meter bridge spans/u)).toBeVisible();
 
