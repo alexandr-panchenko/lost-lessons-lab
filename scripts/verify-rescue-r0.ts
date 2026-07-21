@@ -66,6 +66,9 @@ try {
   const pageCount = context.pages().length;
   await launch.click();
   await page.getByText("Student view", { exact: true }).waitFor();
+  await page.getByText("Live room connected", { exact: true }).waitFor({
+    timeout: 15_000,
+  });
   if (
     page.url() !== studentLink ||
     new URL(page.url()).pathname !== roomPath ||
