@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 
 import type { RoomFeedEvent } from "../../shared/protocol";
 
@@ -43,14 +43,21 @@ export function LearningFeed({
                 <h2>{event.payload.prompt}</h2>
                 <div className="skill-list" aria-label="Supported skills">
                   {event.payload.supportedSkills.map((skill) => (
-                    <button
-                      className="skill-chip"
-                      key={skill}
-                      onClick={() => setPracticeRequest(skill)}
-                      type="button"
-                    >
-                      {skill}
-                    </button>
+                    <Fragment key={skill}>
+                      {skill === "Water and volume" ? (
+                        <a className="skill-chip" href="/water">
+                          {skill}
+                        </a>
+                      ) : (
+                        <button
+                          className="skill-chip"
+                          onClick={() => setPracticeRequest(skill)}
+                          type="button"
+                        >
+                          {skill}
+                        </button>
+                      )}
+                    </Fragment>
                   ))}
                 </div>
                 <form className="teacher-form" onSubmit={submitSetup}>

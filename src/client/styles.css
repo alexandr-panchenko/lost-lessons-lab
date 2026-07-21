@@ -233,6 +233,12 @@ blockquote {
   font-weight: 800;
 }
 
+.skill-chip {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .skill-chip,
 .secondary-button {
   padding: 0.6rem 1rem;

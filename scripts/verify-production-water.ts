@@ -33,8 +33,18 @@ try {
     hasText: "Interpretation complete",
   });
   await analysis.waitFor({ timeout: 30_000 });
-  await analysis.getByText("15", { exact: true }).last().waitFor();
-  await analysis.getByText("15 L", { exact: true }).waitFor();
+  const extractedValues = analysis.getByLabel("Extracted simulation values");
+  await extractedValues.waitFor();
+  const extractedText = (await extractedValues.innerText()).replaceAll(
+    /\s+/gu,
+    " ",
+  );
+  if (!/Flow rate 3 L\/min Time 5 min Water volume 15 L/u.test(extractedText)) {
+    await page.locator(".feed").screenshot({
+      path: "/tmp/lost-lessons-water-diagnostic.png",
+    });
+    throw new Error(`Unexpected extracted water values: ${extractedText}`);
+  }
   await page
     .getByRole("heading", { name: "Water level on target" })
     .waitFor({ timeout: 20_000 });

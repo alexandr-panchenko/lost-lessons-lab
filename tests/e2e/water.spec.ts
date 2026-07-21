@@ -11,7 +11,10 @@ test("water values drive bounded underfill, overflow, and correct scenes", async
       attemptRequests.push(request.url());
     }
   });
-  await page.goto("/water");
+  await page.goto("/");
+  const waterSkill = page.getByRole("link", { name: "Water and volume" });
+  await expect(waterSkill).toHaveAttribute("href", "/water");
+  await waterSkill.click();
   await expect(
     page.getByRole("heading", { name: "Fill the aquarium" }),
   ).toBeVisible();
